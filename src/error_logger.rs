@@ -42,7 +42,7 @@ impl ErrorLog {
 	pub fn new() -> Self {
 		ErrorLog { errors: Vec::new() }
 	}
-	pub fn report(&mut self, line: usize, column: usize, target: &str, description: &str) -> &Self {
+	pub fn log(&mut self, line: usize, column: usize, target: &str, description: &str) -> &Self {
 		self.errors.push(Error::Syntax(ErrorDescription {
 			target: String::from(target),
 			line,

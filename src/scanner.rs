@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Token {
 	// Single-character tokens
 	LeftParen,
@@ -46,27 +46,47 @@ pub enum Token {
 	Eof,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SourceToken {
 	token: Token,
 	line: usize,
 	column: usize,
 }
 
-pub struct SourceTokens {
-	pub tokens: Vec<SourceToken>,
+pub struct Scanner {
+	source: String,
+	tokens: Vec<SourceToken>,
 }
 
-pub fn scan_tokens(source: String) -> SourceTokens {
-	let mut tokens: Vec<SourceToken> = Vec::new();
-	let mut index = 0;
-	while index < source.len() {
-		index += 1;
+impl Scanner {
+	// --- Constructors ---
+	pub fn new() -> Self {
+		Scanner {
+			source: String::new(),
+			tokens: Vec::new(),
+		}
 	}
-	tokens.push(SourceToken {
-		token: Token::Eof,
-		line: index,
-		column: index,
-	});
-	SourceTokens { tokens }
+	pub fn from_source(source: &str) -> Self {
+		let mut ret = Scanner::new();
+		ret.tokenize(source);
+		ret
+	}
+	// --- Accessors ---
+	pub fn tokens(&self) -> Vec<SourceToken> {
+		self.tokens.clone()
+	}
+	// --- Mutators ---
+	pub fn tokenize(&mut self, source: &str) {
+		self.source = String::from(source);
+		self.tokens = Vec::new();
+		let mut index = 0;
+		while index < self.source.len() {
+			index += 1;
+		}
+		self.tokens.push(SourceToken {
+			token: Token::Eof,
+			line: index,
+			column: index,
+		});
+	}
 }

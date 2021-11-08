@@ -5,7 +5,7 @@ use std::io;
 use std::io::Write;
 use std::process;
 
-mod error_reporting;
+mod error_logger;
 mod scanner;
 
 fn main() {
@@ -45,12 +45,12 @@ fn run_prompt() {
 }
 
 fn run(source: String) {
-	let source_tokens: scanner::SourceTokens = scanner::scan_tokens(source);
-	for token in source_tokens.tokens {
+	let scanner = scanner::Scanner::from_source(&source);
+	for token in scanner.tokens() {
 		println!("{:?}", token);
 	}
-	let mut error_log = error_reporting::ErrorLog::new();
-	error_log.report(
+	let mut error_log = error_logger::ErrorLog::new();
+	error_log.log(
 		10,
 		10,
 		"Hello, World!",
