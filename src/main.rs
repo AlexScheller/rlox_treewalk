@@ -45,18 +45,8 @@ fn run_prompt() {
 }
 
 fn run(source: String) {
-	let scanner = scanner::Scanner::from_source(&source);
+	let scanner = scanner::Scanner::from_source(source);
 	for token in scanner.tokens() {
 		println!("{:?}", token);
-	}
-	let mut error_log = error_logger::ErrorLog::new();
-	error_log.log(
-		10,
-		10,
-		"Hello, World!",
-		"This is an example error description",
-	);
-	if error_log.len() > 0 {
-		println!("{}", error_log.errors[0]);
 	}
 }
