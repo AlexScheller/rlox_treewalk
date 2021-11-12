@@ -6,6 +6,8 @@ const USE_EXTENDED_UNICODE: bool = true;
 
 // -----| Symbols |-----
 
+type Symbol = String;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token {
 	// Single-character tokens
@@ -89,6 +91,13 @@ impl SourceLocation {
 		self.column += 1;
 		self.index += 1;
 	}
+	pub fn increment(&mut self, symbol: &str) {
+		if symbol == "\n" {
+			self.increment_line();
+		} else {
+			self.increment_column();
+		}
+	}
 }
 
 /// SourceLocations represent one to many symbols in linear sequence in source.
@@ -109,6 +118,16 @@ impl SourceSpan {
 	}
 	pub fn close(&mut self) {
 		self.start = self.end;
+	}
+}
+
+// -----| Utilities |-----
+fn is_whitespace(symbol: &str) -> bool {
+	match symbol {
+		" " => true,
+		"\t" => true,
+		"\n" => true,
+		_ => false,
 	}
 }
 
@@ -153,7 +172,6 @@ impl Scanner {
 	}
 	fn scan_next_token(&mut self) -> Option<SourceToken> {
 		if let Some(symbol) = self.consume_next_symbol() {
-			println!("New symbol: {:?}", symbol);
 			let token = match symbol.as_ref() {
 				"(" => Token::LeftParen,
 				")" => Token::RightParen,
@@ -165,6 +183,34 @@ impl Scanner {
 				"+" => Token::Plus,
 				";" => Token::Semicolon,
 				"*" => Token::Star,
+				"!" => {
+					if self.match_next_symbol("=") {
+						Token::BangEqual
+					} else {
+						Token::Bang
+					}
+				}
+				"=" => {
+					if self.match_next_symbol("=") {
+						Token::EqualEqual
+					} else {
+						Token::Equal
+					}
+				}
+				"<" => {
+					if self.match_next_symbol("=") {
+						Token::LessEqual
+					} else {
+						Token::Less
+					}
+				}
+				">" => {
+					if self.match_next_symbol("=") {
+						Token::GreaterEqual
+					} else {
+						Token::Greater
+					}
+				}
 				_ => Token::Nil, // TODO: Get this working
 			};
 			let location_span = self.cursor;
@@ -177,22 +223,26 @@ impl Scanner {
 			None
 		}
 	}
-	fn consume_next_symbol(&mut self) -> Option<String> {
+	fn consume_next_symbol(&mut self) -> Option<Symbol> {
 		if let Some(ret) = self.source.get(self.cursor.end.index) {
-			// Get a bit cheeky here and check for newlines even before the symbol is technically
-			// matched against
-			if ret == "\n" {
-				self.cursor.end.increment_line();
-				return None; // TODO: Include newlines as official tokens?
-			} else {
-				self.cursor.end.increment_column();
+			self.cursor.end.increment(ret);
+			// For now, all whitespace is ignored.
+			if is_whitespace(ret) {
+				return None;
 			}
-			// self.cursor.start.index += 1;
-			// self.cursor.end.index += 1;
 			Some(String::from(ret))
 		} else {
 			None
 		}
+	}
+	fn match_next_symbol(&mut self, target: &str) -> bool {
+		if let Some(curr) = self.source.get(self.cursor.end.index) {
+			if curr == target {
+				self.cursor.end.increment(curr);
+				return true;
+			}
+		};
+		false
 	}
 }
 
