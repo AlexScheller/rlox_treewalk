@@ -53,7 +53,8 @@ pub enum Token {
 	Var,
 	While,
 	// File Sentries
-	Newline,
+	// TODO: Break this up into newlines, tabs, spaces, etc.?
+	Whitespace,
 	Eof,
 }
 
@@ -84,7 +85,7 @@ impl SourceLocation {
 	}
 	pub fn increment_line(&mut self) {
 		self.line += 1;
-		self.column = 0;
+		self.column = 1;
 		self.index += 1;
 	}
 	pub fn increment_column(&mut self) {
@@ -122,14 +123,14 @@ impl SourceSpan {
 }
 
 // -----| Utilities |-----
-fn is_whitespace(symbol: &str) -> bool {
-	match symbol {
-		" " => true,
-		"\t" => true,
-		"\n" => true,
-		_ => false,
-	}
-}
+// fn is_whitespace(symbol: &str) -> bool {
+// 	match symbol {
+// 		" " => true,
+// 		"\t" => true,
+// 		"\n" => true,
+// 		_ => false,
+// 	}
+// }
 
 /// The main object through which the source is consumed and transformed into a token sequence.
 pub struct Scanner {
@@ -211,6 +212,17 @@ impl Scanner {
 						Token::Greater
 					}
 				}
+				// "/" => {
+				// 	if self.match_next_symbol("/") {
+				// 		// Comment, ignore till end of the line.
+				// 	} else {
+				// 		Token::Slash
+				// 	}
+				// }
+				" " => Token::Whitespace,
+				"\r" => Token::Whitespace,
+				"\t" => Token::Whitespace,
+				"\n" => Token::Whitespace,
 				_ => Token::Nil, // TODO: Get this working
 			};
 			let location_span = self.cursor;
@@ -226,10 +238,6 @@ impl Scanner {
 	fn consume_next_symbol(&mut self) -> Option<Symbol> {
 		if let Some(ret) = self.source.get(self.cursor.end.index) {
 			self.cursor.end.increment(ret);
-			// For now, all whitespace is ignored.
-			if is_whitespace(ret) {
-				return None;
-			}
 			Some(String::from(ret))
 		} else {
 			None
@@ -238,6 +246,7 @@ impl Scanner {
 	fn match_next_symbol(&mut self, target: &str) -> bool {
 		if let Some(curr) = self.source.get(self.cursor.end.index) {
 			if curr == target {
+				// Technically we know that curr can never be a newline...
 				self.cursor.end.increment(curr);
 				return true;
 			}
