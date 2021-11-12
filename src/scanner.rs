@@ -52,8 +52,9 @@ pub enum Token {
 	True,
 	Var,
 	While,
-	// File Sentries
+	// Meta
 	// TODO: Break this up into newlines, tabs, spaces, etc.?
+	Comment(String),
 	Whitespace,
 	Eof,
 }
@@ -212,13 +213,22 @@ impl Scanner {
 						Token::Greater
 					}
 				}
-				// "/" => {
-				// 	if self.match_next_symbol("/") {
-				// 		// Comment, ignore till end of the line.
-				// 	} else {
-				// 		Token::Slash
-				// 	}
-				// }
+				"/" => {
+					// Comment
+					if self.match_next_symbol("/") {
+						let mut content = String::from("//");
+						while let Some(symbol) = self.peek_next_symbol() {
+							if symbol == "\n" {
+								break;
+							}
+							content.push_str(&symbol);
+							self.consume_next_symbol();
+						}
+						Token::Comment(content)
+					} else {
+						Token::Slash
+					}
+				}
 				" " => Token::Whitespace,
 				"\r" => Token::Whitespace,
 				"\t" => Token::Whitespace,
@@ -238,7 +248,7 @@ impl Scanner {
 	fn consume_next_symbol(&mut self) -> Option<Symbol> {
 		if let Some(ret) = self.source.get(self.cursor.end.index) {
 			self.cursor.end.increment(ret);
-			Some(String::from(ret))
+			Some(ret.to_string())
 		} else {
 			None
 		}
@@ -252,6 +262,13 @@ impl Scanner {
 			}
 		};
 		false
+	}
+	fn peek_next_symbol(&self) -> Option<Symbol> {
+		if let Some(curr) = self.source.get(self.cursor.end.index) {
+			Some(curr.to_string())
+		} else {
+			None
+		}
 	}
 }
 
