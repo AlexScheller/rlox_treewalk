@@ -77,6 +77,11 @@ pub struct SourceToken {
 // 	}
 // }
 
+// Lol wtf is this
+fn is_digit(symbol: &str) -> bool {
+	symbol.to_string().chars().collect::<Vec<char>>()[0].is_ascii_digit()
+}
+
 /// The main object through which the source is consumed and transformed into a token sequence.
 pub struct Scanner {
 	/// UTF8 Graphemes
@@ -173,6 +178,7 @@ impl Scanner {
 						Token::Slash
 					}
 				}
+				// --- Whitespace ---
 				" " => Token::Whitespace,
 				"\r" => Token::Whitespace,
 				"\t" => Token::Whitespace,
@@ -184,7 +190,14 @@ impl Scanner {
 						Token::Error
 					}
 				}
-				_ => Token::Nil, // TODO: Get this working
+				// TODO Implement
+				digit if is_digit(digit) => Token::Number(digit.to_string()),
+				_ => {
+					// self.error_log
+					// .log(self.cursor, &symbol, "Unexpected character");
+					// Token::Error
+					Token::Nil
+				}
 			};
 			let location_span = self.cursor;
 			self.cursor.close();
