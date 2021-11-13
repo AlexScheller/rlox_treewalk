@@ -3,16 +3,16 @@ use std::env;
 use std::fs;
 use std::io;
 use std::io::Write;
-use std::process;
 
-mod error_logger;
+mod errors;
 mod scanner;
+mod source_file;
 
 fn main() {
 	let args: Vec<String> = env::args().collect();
 	if args.len() > 2 {
 		println!("Usage: rlox <script>");
-		process::exit(exitcode::USAGE);
+		errors::exit_with_code(exitcode::USAGE);
 	} else if args.len() == 2 {
 		run_file(&args[1]);
 	} else {
@@ -20,7 +20,7 @@ fn main() {
 	}
 }
 
-fn run_file(file_name: &String) {
+fn run_file(file_name: &str) {
 	let contents = fs::read_to_string(file_name).expect("Failed to read file");
 	run(contents);
 }

@@ -1,6 +1,7 @@
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::error_logger;
+use crate::errors;
+use crate::source_file;
 
 const USE_EXTENDED_UNICODE: bool = true;
 
@@ -57,70 +58,13 @@ pub enum Token {
 	Comment(String),
 	Whitespace,
 	Eof,
+	Error, // This seems bad...
 }
 
 #[derive(Debug, Clone)]
 pub struct SourceToken {
 	token: Token,
-	location_span: SourceSpan,
-}
-
-// -----| Locations |-----
-
-/// A SourceLocation represents a single symbol and where it's location in source.
-#[derive(Debug, Clone, Copy)]
-struct SourceLocation {
-	line: usize,
-	column: usize,
-	/// The absolute index into the source, regardless of which line or or column.
-	index: usize,
-}
-
-impl SourceLocation {
-	pub fn new() -> Self {
-		SourceLocation {
-			line: 1,
-			column: 1,
-			index: 0,
-		}
-	}
-	pub fn increment_line(&mut self) {
-		self.line += 1;
-		self.column = 1;
-		self.index += 1;
-	}
-	pub fn increment_column(&mut self) {
-		self.column += 1;
-		self.index += 1;
-	}
-	pub fn increment(&mut self, symbol: &str) {
-		if symbol == "\n" {
-			self.increment_line();
-		} else {
-			self.increment_column();
-		}
-	}
-}
-
-/// SourceLocations represent one to many symbols in linear sequence in source.
-#[derive(Debug, Clone, Copy)]
-struct SourceSpan {
-	/// Inclusive/Open
-	start: SourceLocation,
-	/// Exclusive/Closed
-	end: SourceLocation,
-}
-
-impl SourceSpan {
-	pub fn new() -> Self {
-		SourceSpan {
-			start: SourceLocation::new(),
-			end: SourceLocation::new(),
-		}
-	}
-	pub fn close(&mut self) {
-		self.start = self.end;
-	}
+	location_span: source_file::SourceSpan,
 }
 
 // -----| Utilities |-----
@@ -139,18 +83,18 @@ pub struct Scanner {
 	source: Vec<String>,
 	tokens: Vec<SourceToken>,
 	/// The subset of the source currently being investigated
-	cursor: SourceSpan,
-	error_log: error_logger::ErrorLog,
+	cursor: source_file::SourceSpan,
+	error_log: errors::ErrorLog,
 }
 
 impl Scanner {
 	// --- Constructors ---
 	pub fn new() -> Self {
 		Scanner {
-			source: Vec::new(),
+			source: Vec::new(), // TODO: Use a struct created in `source_file.rs`
 			tokens: Vec::new(),
-			cursor: SourceSpan::new(),
-			error_log: error_logger::ErrorLog::new(),
+			cursor: source_file::SourceSpan::new(),
+			error_log: errors::ErrorLog::new(),
 		}
 	}
 	pub fn from_source(source: String) -> Self {
@@ -233,14 +177,26 @@ impl Scanner {
 				"\r" => Token::Whitespace,
 				"\t" => Token::Whitespace,
 				"\n" => Token::Whitespace,
+				"\"" => {
+					if let Some(string_value) = self.consume_string() {
+						Token::String(string_value)
+					} else {
+						Token::Error
+					}
+				}
 				_ => Token::Nil, // TODO: Get this working
 			};
 			let location_span = self.cursor;
 			self.cursor.close();
-			Some(SourceToken {
-				token,
-				location_span,
-			})
+			if token != Token::Error {
+				Some(SourceToken {
+					token,
+					location_span,
+				})
+			} else {
+				errors::exit_on_error(exitcode::DATAERR, &self.error_log);
+				None
+			}
 		} else {
 			None
 		}
@@ -270,88 +226,19 @@ impl Scanner {
 			None
 		}
 	}
+	fn consume_string(&mut self) -> Option<String> {
+		while let Some(symbol) = self.peek_next_symbol() {
+			self.cursor.end.increment(&symbol);
+			if symbol == "\"" {
+				return Some(self.source_substring(self.cursor));
+			}
+		}
+		let error_string = &self.source_substring(self.cursor);
+		self.error_log
+			.log(self.cursor, error_string, "Unterminated String");
+		None
+	}
+	fn source_substring(&self, cursor: source_file::SourceSpan) -> String {
+		self.source[cursor.start.index..cursor.end.index].join("")
+	}
 }
-
-// pub struct Scanner {
-// 	source: String,
-// 	source_graphemes: Vec<&str>,
-// 	tokens: Vec<SourceToken>,
-// 	cursor: SourceLocation,
-// 	error_log: error_logger::ErrorLog,
-// }
-
-// // TODO, re-write this to remove some of the warts.
-// impl Scanner {
-// 	// --- Constructors ---
-// 	pub fn new() -> Self {
-// 		Scanner {
-// 			source: String::new(),
-// 			tokens: Vec::new(),
-// 			cursor: SourceLocation::new(),
-// 			error_log: error_logger::ErrorLog::new(),
-// 		}
-// 	}
-// 	pub fn from_source(source: &str) -> Self {
-// 		let mut ret = Scanner::new();
-// 		ret.tokenize_source(source);
-// 		ret
-// 	}
-// 	// --- Accessors ---
-// 	pub fn tokens(&self) -> Vec<SourceToken> {
-// 		self.tokens.clone()
-// 	}
-// 	fn is_source_consumed(&self) -> bool {
-// 		self.cursor.index >= self
-// 	}
-// 	// --- Mutators ---
-// 	fn tokenize_source(&mut self, source: &str) {
-// 		// self.source = String::from(source);
-// 		let symbols: Vec<&str> = self.source.graphemes(USE_EXTENDED_UNICODE).collect();
-// 		while let Some(token) = self.scan_next_token(symbols) {
-// 			self.tokens.push(token)
-// 		}
-// 	}
-// 	fn scan_next_token(&mut self, symbols: Vec<&str>) -> Option<SourceToken> {
-// 		let symbol = self.consume_next_symbol(symbols);
-// 		let scan = match symbol {
-// 			// Singles
-// 			"(" => Some(Token::LeftParen),
-// 			")" => Some(Token::RightParen),
-// 			"{" => Some(Token::LeftBrace),
-// 			"}" => Some(Token::RightBrace),
-// 			"," => Some(Token::Comma),
-// 			"." => Some(Token::Dot),
-// 			"-" => Some(Token::Minus),
-// 			"+" => Some(Token::Plus),
-// 			";" => Some(Token::Semicolon),
-// 			"*" => Some(Token::Star),
-// 			// Pairs
-// 			"!" => {
-// 				if self.match_next_symbol("=", symbols) {
-// 					Some(Token::BangEqual)
-// 				} else {
-// 					Some(Token::Bang)
-// 				}
-// 			}
-// 			_ => {
-// 				let description = format!("Unexpected Character: {}", symbol);
-// 				// error_log.log(cursor.line, cursor.column, "", &description);
-// 				None
-// 			}
-// 		};
-// 	}
-// 	fn consume_next_symbol(&self, symbols: Vec<&str>) -> &str {
-// 		let ret = symbols[self.cursor.index];
-// 		self.cursor.index += 1;
-// 		ret
-// 	}
-// 	fn match_next_symbol(&self, target: &str, symbols: Vec<&str>) -> bool {
-// 		if self.is_source_consumed() {
-// 			false
-// 		} else if symbols[self.cursor.index] != target {
-// 			false
-// 		} else {
-// 			true
-// 		}
-// 	}
-// }

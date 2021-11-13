@@ -1,0 +1,14 @@
+// This is a test file for lox
+for (var i = 1; i < 5; i = i + 1) {
+	print i * i
+}
+
+class Apple {
+	init(color) {
+		this.color = color;
+	}
+}
+
+var apple = Apple("red");
+
+var strapple = Apple("Unterminated String whooooaaaaa

@@ -1,24 +1,25 @@
 use std::fmt;
+use std::process;
+
+use crate::source_file;
 
 pub struct ErrorDescription {
-	pub target: String,
-	pub line: usize,
-	pub column: usize,
+	pub subject: String,
+	pub location: source_file::SourceSpan,
 	pub description: String,
 }
 
 impl fmt::Display for ErrorDescription {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		let ErrorDescription {
-			target,
-			line,
-			column,
+			subject,
+			location,
 			description,
 		} = self;
 		write!(
 			f,
 			"[line: {}, col: {}] Error ({}): {}",
-			line, column, target, description
+			location.start.line, location.start.column, description, subject
 		)
 	}
 }
@@ -42,11 +43,15 @@ impl ErrorLog {
 	pub fn new() -> Self {
 		ErrorLog { errors: Vec::new() }
 	}
-	pub fn log(&mut self, line: usize, column: usize, target: &str, description: &str) -> &Self {
+	pub fn log(
+		&mut self,
+		location: source_file::SourceSpan,
+		subject: &str,
+		description: &str,
+	) -> &Self {
 		self.errors.push(Error::Syntax(ErrorDescription {
-			target: String::from(target),
-			line,
-			column,
+			subject: String::from(subject),
+			location,
 			description: String::from(description),
 		}));
 		self
@@ -54,4 +59,23 @@ impl ErrorLog {
 	pub fn len(&self) -> usize {
 		self.errors.len()
 	}
+}
+
+impl fmt::Display for ErrorLog {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let mut result = String::new();
+		for error in self.errors.iter() {
+			result.push_str(&error.to_string());
+		}
+		write!(f, "{}", result)
+	}
+}
+
+pub fn exit_with_code(code: exitcode::ExitCode) {
+	process::exit(code);
+}
+
+pub fn exit_on_error(code: exitcode::ExitCode, error_log: &ErrorLog) {
+	println!("{}", error_log);
+	exit_with_code(code);
 }
