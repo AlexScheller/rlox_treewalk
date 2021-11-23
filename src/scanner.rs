@@ -1,6 +1,7 @@
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::errors;
+use crate::language_utilities::enum_variant_equal;
 use crate::source_file;
 
 const USE_EXTENDED_UNICODE: bool = true;
@@ -9,7 +10,15 @@ const USE_EXTENDED_UNICODE: bool = true;
 
 type Symbol = String;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
+pub enum WhitespaceKind {
+	Space,
+	Tab,
+	Return,
+	Newline,
+}
+
+#[derive(Debug, Clone)]
 pub enum Token {
 	// Single-character tokens
 	LeftParen,
@@ -35,7 +44,7 @@ pub enum Token {
 	// Literals
 	Identifier(String),
 	String(String),
-	Number(String),
+	Number(f64),
 	// Keywords
 	And,
 	Class,
@@ -54,11 +63,32 @@ pub enum Token {
 	Var,
 	While,
 	// Meta
-	// TODO: Break this up into newlines, tabs, spaces, etc.?
 	Comment(String),
-	Whitespace,
+	Whitespace(WhitespaceKind),
 	Eof,
 	Error, // This seems bad...
+}
+
+fn match_keyword(symbol: &str) -> Option<Token> {
+	match symbol {
+		"and" => Some(Token::And),
+		"class" => Some(Token::Class),
+		"else" => Some(Token::Else),
+		"false" => Some(Token::False),
+		"for" => Some(Token::For),
+		"fun" => Some(Token::Fun),
+		"if" => Some(Token::If),
+		"nil" => Some(Token::Nil),
+		"or" => Some(Token::Or),
+		"print" => Some(Token::Print),
+		"return" => Some(Token::Return),
+		"super" => Some(Token::Super),
+		"this" => Some(Token::This),
+		"true" => Some(Token::True),
+		"var" => Some(Token::Var),
+		"while" => Some(Token::While),
+		_ => None,
+	}
 }
 
 #[derive(Debug, Clone)]
@@ -77,9 +107,23 @@ pub struct SourceToken {
 // 	}
 // }
 
-// Lol wtf is this
+// Lol wtf is this. See if this is a performance concern and try to remove it. there's honestly
+// probably a way better of doing this.
+fn grapheme_to_char(symbol: &str) -> char {
+	symbol.to_string().chars().collect::<Vec<char>>()[0]
+}
+
 fn is_digit(symbol: &str) -> bool {
-	symbol.to_string().chars().collect::<Vec<char>>()[0].is_ascii_digit()
+	grapheme_to_char(symbol).is_ascii_digit()
+}
+
+fn is_alpha(symbol: &str) -> bool {
+	let as_char = grapheme_to_char(symbol);
+	as_char.is_ascii_alphabetic() || as_char == '_'
+}
+
+fn is_alpha_numeric(symbol: &str) -> bool {
+	is_alpha(symbol) || is_digit(symbol)
 }
 
 /// The main object through which the source is consumed and transformed into a token sequence.
@@ -120,7 +164,13 @@ impl Scanner {
 		while let Some(token) = self.scan_next_token() {
 			self.tokens.push(token);
 		}
+		self.tokens.push(SourceToken {
+			token: Token::Eof,
+			location_span: self.cursor,
+		})
 	}
+	// Note that this is the only function that will ever "close" the scanning cursor. All other
+	// actions only advance it.
 	fn scan_next_token(&mut self) -> Option<SourceToken> {
 		if let Some(symbol) = self.consume_next_symbol() {
 			let token = match symbol.as_ref() {
@@ -179,29 +229,44 @@ impl Scanner {
 					}
 				}
 				// --- Whitespace ---
-				" " => Token::Whitespace,
-				"\r" => Token::Whitespace,
-				"\t" => Token::Whitespace,
-				"\n" => Token::Whitespace,
+				" " => Token::Whitespace(WhitespaceKind::Space),
+				"\r" => Token::Whitespace(WhitespaceKind::Return),
+				"\t" => Token::Whitespace(WhitespaceKind::Tab),
+				"\n" => Token::Whitespace(WhitespaceKind::Newline),
 				"\"" => {
 					if let Some(string_value) = self.consume_string() {
-						Token::String(string_value)
+						Token::String(string_value[1..string_value.len() - 1].to_string())
 					} else {
 						Token::Error
 					}
 				}
-				// TODO Implement
-				digit if is_digit(digit) => Token::Number(digit.to_string()),
+				digit if is_digit(digit) => {
+					if let Some(number_value) = self.consume_number() {
+						Token::Number(number_value)
+					} else {
+						Token::Error
+					}
+				}
+				identifier if is_alpha(identifier) => {
+					if let Some(identifier_value) = self.consume_identifier() {
+						if let Some(keyword) = match_keyword(&identifier_value) {
+							keyword
+						} else {
+							Token::Identifier(identifier_value)
+						}
+					} else {
+						Token::Error
+					}
+				}
 				_ => {
-					// self.error_log
-					// .log(self.cursor, &symbol, "Unexpected character");
-					// Token::Error
-					Token::Nil
+					self.error_log
+						.log(self.cursor, &symbol, "Unexpected character");
+					Token::Error
 				}
 			};
 			let location_span = self.cursor;
 			self.cursor.close();
-			if token != Token::Error {
+			if !enum_variant_equal(&token, &Token::Error) {
 				Some(SourceToken {
 					token,
 					location_span,
@@ -239,6 +304,13 @@ impl Scanner {
 			None
 		}
 	}
+	fn peek_next_symbol_twice(&self) -> Option<Symbol> {
+		if let Some(curr) = self.source.get(self.cursor.end.index + 1) {
+			Some(curr.to_string())
+		} else {
+			None
+		}
+	}
 	fn consume_string(&mut self) -> Option<String> {
 		while let Some(symbol) = self.peek_next_symbol() {
 			self.cursor.end.increment(&symbol);
@@ -253,5 +325,51 @@ impl Scanner {
 	}
 	fn source_substring(&self, cursor: source_file::SourceSpan) -> String {
 		self.source[cursor.start.index..cursor.end.index].join("")
+	}
+	// TODO: This function is crunchy as hell, also refactor peeking?
+	fn consume_number(&mut self) -> Option<f64> {
+		// Consume all digits until you run out.
+		// TODO: Duplicated code.
+		while let Some(symbol) = self.peek_next_symbol() {
+			if is_digit(&symbol) {
+				self.consume_next_symbol();
+			} else {
+				break;
+			}
+		}
+		// See if there's a decimal point, if so, continue consuming digits until you run out.
+		if let Some(symbol) = self.peek_next_symbol() {
+			if symbol == "." {
+				if let Some(symbol) = self.peek_next_symbol_twice() {
+					if is_digit(&symbol) {
+						// Consume the "."
+						self.consume_next_symbol();
+						// TODO: Duplicated Code
+						while let Some(symbol) = self.peek_next_symbol() {
+							if is_digit(&symbol) {
+								self.consume_next_symbol();
+							} else {
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+		let ret = self
+			.source_substring(self.cursor)
+			.parse::<f64>()
+			.expect("Internal error parsing float!");
+		Some(ret)
+	}
+	fn consume_identifier(&mut self) -> Option<String> {
+		while let Some(symbol) = self.peek_next_symbol() {
+			if is_alpha_numeric(&symbol) {
+				self.consume_next_symbol();
+			} else {
+				break;
+			}
+		}
+		Some(self.source_substring(self.cursor))
 	}
 }

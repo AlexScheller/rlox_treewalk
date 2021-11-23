@@ -56,9 +56,6 @@ impl ErrorLog {
 		}));
 		self
 	}
-	pub fn len(&self) -> usize {
-		self.errors.len()
-	}
 }
 
 impl fmt::Display for ErrorLog {

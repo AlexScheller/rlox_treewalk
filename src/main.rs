@@ -5,6 +5,7 @@ use std::io;
 use std::io::Write;
 
 mod errors;
+mod language_utilities;
 mod scanner;
 mod source_file;
 
