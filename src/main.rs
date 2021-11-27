@@ -4,8 +4,10 @@ use std::fs;
 use std::io;
 use std::io::Write;
 
+mod ast_printer;
 mod errors;
 mod language_utilities;
+mod parser;
 mod scanner;
 mod source_file;
 

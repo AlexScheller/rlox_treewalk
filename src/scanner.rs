@@ -1,3 +1,4 @@
+use std::fmt;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::errors;
@@ -69,6 +70,56 @@ pub enum Token {
 	Error, // This seems bad...
 }
 
+impl fmt::Display for Token {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let value = match self {
+			Token::LeftParen => String::from("("),
+			Token::RightParen => String::from(")"),
+			Token::LeftBrace => String::from("{"),
+			Token::RightBrace => String::from("}"),
+			Token::Comma => String::from(","),
+			Token::Dot => String::from("."),
+			Token::Minus => String::from("-"),
+			Token::Plus => String::from("+"),
+			Token::Semicolon => String::from(";"),
+			Token::Slash => String::from("/"),
+			Token::Star => String::from("*"),
+			Token::Bang => String::from("!"),
+			Token::BangEqual => String::from("!="),
+			Token::Equal => String::from("="),
+			Token::EqualEqual => String::from("=="),
+			Token::Greater => String::from(">"),
+			Token::GreaterEqual => String::from(">="),
+			Token::Less => String::from("<"),
+			Token::LessEqual => String::from("<="),
+			Token::Identifier(identifier) => format!("identifier \"{}\"", identifier),
+			Token::String(string) => format!("string \"{}\"", string),
+			Token::Number(number) => format!("number \"{}\"", number),
+			Token::And => String::from("and"),
+			Token::Class => String::from("class"),
+			Token::Else => String::from("else"),
+			Token::False => String::from("false"),
+			Token::Fun => String::from("fun"),
+			Token::For => String::from("for"),
+			Token::If => String::from("if"),
+			Token::Nil => String::from("nil"),
+			Token::Or => String::from("or"),
+			Token::Print => String::from("print"),
+			Token::Return => String::from("return"),
+			Token::Super => String::from("super"),
+			Token::This => String::from("this"),
+			Token::True => String::from("true"),
+			Token::Var => String::from("var"),
+			Token::While => String::from("while"),
+			Token::Comment(comment) => format!("comment \"{}\"", comment),
+			Token::Whitespace(whitespace) => format!("whitespace {:?}", whitespace),
+			Token::Eof => String::from("Eof"),
+			Token::Error => String::from("Error"),
+		};
+		write!(f, "{}", value)
+	}
+}
+
 fn match_keyword(symbol: &str) -> Option<Token> {
 	match symbol {
 		"and" => Some(Token::And),
@@ -93,7 +144,7 @@ fn match_keyword(symbol: &str) -> Option<Token> {
 
 #[derive(Debug, Clone)]
 pub struct SourceToken {
-	token: Token,
+	pub token: Token,
 	location_span: source_file::SourceSpan,
 }
 
