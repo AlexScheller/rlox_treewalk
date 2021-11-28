@@ -145,7 +145,7 @@ fn match_keyword(symbol: &str) -> Option<Token> {
 #[derive(Debug, Clone)]
 pub struct SourceToken {
 	pub token: Token,
-	location_span: source_file::SourceSpan,
+	pub location_span: source_file::SourceSpan,
 }
 
 // -----| Utilities |-----
