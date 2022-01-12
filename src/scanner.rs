@@ -11,7 +11,7 @@ const USE_EXTENDED_UNICODE: bool = true;
 
 type Symbol = String;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum WhitespaceKind {
 	Space,
 	Tab,
@@ -19,7 +19,7 @@ pub enum WhitespaceKind {
 	Newline,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Token {
 	// Single-character tokens
 	LeftParen,

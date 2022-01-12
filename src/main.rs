@@ -12,26 +12,26 @@ mod scanner;
 mod source_file;
 
 fn main() {
-	// let args: Vec<String> = env::args().collect();
-	// if args.len() > 2 {
-	// 	println!("Usage: rlox <script>");
-	// 	errors::exit_with_code(exitcode::USAGE);
-	// } else if args.len() == 2 {
-	// 	run_file(&args[1]);
-	// } else {
-	// 	run_prompt();
-	// }
-	let expression = parser::Expr::Binary(parser::Binary {
-		left: Box::new(parser::Expr::Unary(parser::Unary {
-			operator: scanner::Token::Minus,
-			right: Box::new(parser::Expr::Literal(parser::LiteralKind::Number(123.0))),
-		})),
-		operator: scanner::Token::Star,
-		right: Box::new(parser::Expr::Grouping(Box::new(parser::Expr::Literal(
-			parser::LiteralKind::Number(45.67),
-		)))),
-	});
-	println!("{}", ast_printer::expr_to_ast_string(expression));
+	let args: Vec<String> = env::args().collect();
+	if args.len() > 2 {
+		println!("Usage: rlox <script>");
+		errors::exit_with_code(exitcode::USAGE);
+	} else if args.len() == 2 {
+		run_file(&args[1]);
+	} else {
+		run_prompt();
+	}
+	// let expression = parser::Expr::Binary(parser::BinaryExpr {
+	// 	left: Box::new(parser::Expr::Unary(parser::UnaryExpr {
+	// 		operator: scanner::Token::Minus,
+	// 		right: Box::new(parser::Expr::Literal(parser::LiteralKind::Number(123.0))),
+	// 	})),
+	// 	operator: scanner::Token::Star,
+	// 	right: Box::new(parser::Expr::Grouping(Box::new(parser::Expr::Literal(
+	// 		parser::LiteralKind::Number(45.67),
+	// 	)))),
+	// });
+	// println!("{}", ast_printer::expr_to_ast_string(expression));
 }
 
 fn run_file(file_name: &str) {

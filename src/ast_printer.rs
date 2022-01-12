@@ -16,6 +16,8 @@ pub fn expr_to_ast_string(expression: parser::Expr) -> String {
 		parser::Expr::Literal(kind) => match kind {
 			parser::LiteralKind::Number(number) => number.to_string(),
 			parser::LiteralKind::String(string) => string,
+			parser::LiteralKind::Boolean(boolean) => boolean.to_string(),
+			parser::LiteralKind::Nil => String::from("nil"),
 		},
 		parser::Expr::Unary(expr) => {
 			format!("({} {})", expr.operator, expr_to_ast_string(*expr.right))
