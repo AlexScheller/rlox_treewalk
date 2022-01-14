@@ -1,4 +1,5 @@
-use crate::scanner;
+use crate::language_utilities::enum_variant_equal;
+use crate::scanner::{self, WhitespaceKind};
 
 // -----| Expression Grammer |-----
 //
@@ -70,34 +71,53 @@ impl Parser {
     }
     // Driver
     pub fn parse(&mut self) -> Expr {
+        // The tokens provided to the parser may contain whitespace.
+        // This seems clunky, we only care about the type, not the value
+        let whitespace_exemplar = scanner::Token::Whitespace(WhitespaceKind::Space);
+        // I have no idea if this way makes the most sense...
+        self.tokens = self
+            .tokens
+            .drain(..)
+            .filter(|source_token| !enum_variant_equal(&source_token.token, &whitespace_exemplar))
+            .collect();
         self.expression()
     }
-    // Token reading
+    // Token reading.
     fn peek_next_token(&self) -> Option<scanner::SourceToken> {
         // Look into this, I have to do it this way to avoid mutable/immutable borrow conflicts.
         // maybe because if I just return `self.tokens.get(self.index)` there's some kind of
         // memory sharing there or smth? Dunno.
         if let Some(token) = self.tokens.get(self.index) {
-            Some(token.clone())
-        } else {
-            None
+            if token.token == scanner::Token::Eof {
+                return None;
+            } else {
+                return Some(token.clone());
+            }
         }
+        panic!("Consumed all tokens without encountering EOF");
     }
     fn advance_to_next_token(&mut self) -> Option<&scanner::SourceToken> {
         if let Some(token) = self.tokens.get(self.index) {
             self.index += 1;
-            Some(token)
-        } else {
-            None
+            if token.token == scanner::Token::Eof {
+                return None;
+            } else {
+                return Some(token);
+            }
         }
+        panic!("Consumed all tokens without encountering EOF");
     }
     fn consume_next_token(&mut self, expected_token: scanner::Token) -> &scanner::SourceToken {
         if let Some(next_token) = self.advance_to_next_token() {
             if next_token.token == expected_token {
                 return next_token;
             }
+            panic!(
+                "Expected '{}' after expression, instead found '{}'",
+                expected_token, next_token.token
+            );
         };
-        panic!("Expected {} after expression", expected_token);
+        panic!("Reached end of file while expecting '{}'", expected_token);
     }
     // Rules
     // TODO:? Make a helper function for binaries that just takes a list of the tokens necesary and
@@ -181,6 +201,7 @@ impl Parser {
     fn unary(&mut self) -> Expr {
         if let Some(source_token) = self.peek_next_token() {
             if UNARY_TOKENS.contains(&source_token.token) {
+                self.advance_to_next_token();
                 let operator = source_token.token.clone();
                 let right = self.unary();
                 return Expr::Unary(UnaryExpr {
@@ -193,6 +214,7 @@ impl Parser {
     }
     fn primary(&mut self) -> Expr {
         if let Some(source_token) = self.peek_next_token() {
+            self.advance_to_next_token();
             match source_token.token {
                 scanner::Token::False => Expr::Literal(LiteralKind::Boolean(false)),
                 scanner::Token::True => Expr::Literal(LiteralKind::Boolean(true)),

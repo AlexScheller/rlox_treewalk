@@ -60,10 +60,12 @@ fn run_prompt() {
 
 fn run(source: String) {
     let scanner = scanner::Scanner::from_source(source);
+    // println!("Tokens:");
+    // for token in scanner.tokens() {
+    //     println!("{:?}", token);
+    // }
+    println!("AST:");
     let mut parser = parser::Parser::new(scanner.tokens());
     let expression = parser.parse();
     println!("{}", ast_printer::expr_to_ast_string(expression));
-    // for token in scanner.tokens() {
-    // 	println!("{:?}", token);
-    // }
 }
