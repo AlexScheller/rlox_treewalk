@@ -5,7 +5,8 @@ use crate::scanner::{self, WhitespaceKind};
 //
 // In order of increasing precedence
 //
-// expression 	-> equality ;
+// expression 	-> ternary ;
+// ternary		-> equality ( "?" equality ":" equality )* ;
 // equality 	-> comparison ( ( "!=" | "==" ) comparison )* ;
 // comparison	-> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 // term			-> factor ( ( "-" | "+" ) factor )* ;
@@ -24,6 +25,7 @@ pub enum LiteralKind {
 #[derive(Debug)]
 pub enum Expr {
     Binary(BinaryExpr),
+    Ternary(TernaryExpr),
     Grouping(Box<Expr>),
     Literal(LiteralKind),
     Unary(UnaryExpr),
@@ -35,6 +37,14 @@ pub struct BinaryExpr {
     pub left: Box<Expr>,
     pub operator: scanner::Token,
     pub right: Box<Expr>,
+}
+
+// We only have one of these, so the operators are implicit
+#[derive(Debug)]
+pub struct TernaryExpr {
+    pub condition: Box<Expr>,
+    pub left_result: Box<Expr>,
+    pub right_result: Box<Expr>,
 }
 
 #[derive(Debug)]
@@ -59,6 +69,10 @@ const TERM_TOKENS: &[scanner::Token] = &[scanner::Token::Minus, scanner::Token::
 const FACTOR_TOKENS: &[scanner::Token] = &[scanner::Token::Slash, scanner::Token::Star];
 
 const UNARY_TOKENS: &[scanner::Token] = &[scanner::Token::Bang, scanner::Token::Minus];
+
+const TERNARY_TEST_TOKEN: scanner::Token = scanner::Token::QuestionMark;
+
+const TERNARY_BRANCH_TOKEN: scanner::Token = scanner::Token::Colon;
 
 pub struct Parser {
     tokens: Vec<scanner::SourceToken>,
@@ -124,7 +138,26 @@ impl Parser {
     // the next function to match? Might look a bit weird. Also, it may be slightly faster to have
     // them as separate functions. Also, it may become convenient that they are separate later.
     fn expression(&mut self) -> Expr {
-        self.equality()
+        self.ternary()
+    }
+    fn ternary(&mut self) -> Expr {
+        let mut expr = self.equality();
+        while let Some(source_token) = self.peek_next_token() {
+            if source_token.token == TERNARY_TEST_TOKEN {
+                self.advance_to_next_token();
+                let left_result = self.equality();
+                self.consume_next_token(TERNARY_BRANCH_TOKEN);
+                let right_result = self.equality();
+                expr = Expr::Ternary(TernaryExpr {
+                    condition: Box::new(expr),
+                    left_result: Box::new(left_result),
+                    right_result: Box::new(right_result),
+                })
+            } else {
+                break;
+            }
+        }
+        expr
     }
     fn equality(&mut self) -> Expr {
         let mut expr = self.comparison();

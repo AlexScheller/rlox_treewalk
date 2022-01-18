@@ -33,6 +33,8 @@ pub enum Token {
     Semicolon,
     Slash,
     Star,
+    QuestionMark,
+    Colon,
     // One or two character tokens
     Bang,
     BangEqual,
@@ -84,6 +86,8 @@ impl fmt::Display for Token {
             Token::Semicolon => String::from(";"),
             Token::Slash => String::from("/"),
             Token::Star => String::from("*"),
+            Token::QuestionMark => String::from("?"),
+            Token::Colon => String::from(":"),
             Token::Bang => String::from("!"),
             Token::BangEqual => String::from("!="),
             Token::Equal => String::from("="),
@@ -235,6 +239,8 @@ impl Scanner {
                 "+" => Token::Plus,
                 ";" => Token::Semicolon,
                 "*" => Token::Star,
+                "?" => Token::QuestionMark,
+                ":" => Token::Colon,
                 "!" => {
                     if self.match_next_symbol("=") {
                         Token::BangEqual
