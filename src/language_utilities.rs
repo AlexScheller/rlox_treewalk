@@ -2,5 +2,5 @@
 // heterogenous values whose equality comparators cannot be automatically derived. In the cvase of
 // this enum, we don't actually care about comparing the equality of the values anyway.
 pub fn enum_variant_equal<T>(a: &T, b: &T) -> bool {
-	std::mem::discriminant(a) == std::mem::discriminant(b)
+    std::mem::discriminant(a) == std::mem::discriminant(b)
 }

@@ -6,6 +6,7 @@ use std::io::Write;
 
 mod ast_printer;
 mod errors;
+mod interpreter;
 mod language_utilities;
 mod parser;
 mod scanner;
@@ -68,4 +69,5 @@ fn run(source: String) {
     let mut parser = parser::Parser::new(scanner.tokens());
     let expression = parser.parse();
     println!("{}", ast_printer::expr_to_ast_string(expression));
+    let value = interpreter::interpret(expression);
 }
