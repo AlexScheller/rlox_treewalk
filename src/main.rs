@@ -68,6 +68,7 @@ fn run(source: String) {
     println!("AST:");
     let mut parser = parser::Parser::new(scanner.tokens());
     let expression = parser.parse();
-    println!("{}", ast_printer::expr_to_ast_string(expression));
-    let value = interpreter::interpret(expression);
+    println!("{}", ast_printer::expr_to_ast_string(&expression));
+    let value = interpreter::interpret_expression(expression);
+    println!("The result of this expression is: {:?}", value);
 }

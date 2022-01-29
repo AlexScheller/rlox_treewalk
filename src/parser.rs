@@ -14,7 +14,7 @@ use crate::scanner::{self, WhitespaceKind};
 // unary		-> ( "!" | "-" ) unary | primary ;
 // primary		-> NUMBER| | STRING | "true" | "false" | "nil" | "(" expression ")" ;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum LiteralKind {
     Number(f64),
     String(String),
