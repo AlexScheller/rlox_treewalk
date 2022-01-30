@@ -1,6 +1,4 @@
-use crate::language_utilities::enum_variant_equal;
-// use crate::parser;
-use crate::parser::{BinaryExpr, Expr, LiteralKind, UnaryExpr};
+use crate::parser::{BinaryExpr, Expr, LiteralKind, TernaryExpr, UnaryExpr};
 use crate::scanner::Token;
 
 // // Rust's native method of runtime introspection is not recomended for anything other than debugging.
@@ -17,8 +15,8 @@ impl Boolable for LiteralKind {
         match self {
             LiteralKind::Boolean(value) => Some(*value),
             LiteralKind::Nil => Some(false),
-            LiteralKind::Number(value) => None, // For now... mwahahaha
-            LiteralKind::String(value) => None, // Same as above
+            LiteralKind::Number(_) => None,
+            LiteralKind::String(_) => None,
         }
     }
 }
@@ -31,18 +29,17 @@ fn is_truthy(investigatee: LiteralKind) -> bool {
     }
 }
 
+// For now, just relying on PartialEq should be good enough. In the future, this may nee to be
+// changed, which is why we use this function to wrap the equality check.
 fn is_equal(a: LiteralKind, b: LiteralKind) -> bool {
-    if let (LiteralKind::Nil, LiteralKind::Nil) = (a, b) {
-        return true;
-    } else if let LiteralKind::Nil = a {
-        return false;
-    }
-    if enum_variant_equal(&a, &b) {
-        return a == b; // hmm, will this work?
-    }
-    // Should this panic or just return false? I think this should return false, or possibly an
-    // option, For now I'll panic here for convenience.
-    panic!("Illegal equality comparison of operands")
+    a == b
+    // Maybe in the future we want to prevent comparisons between types that can never be
+    // equivilent. Certianly I have no interest in equality checks suceeding between heterogenus
+    // types of the kind JS allows.
+    // if enum_variant_equal(&a, &b) {
+    //     return a == b;
+    // }
+    // panic!("Illegal equality comparison of operands")
 }
 
 pub fn interpret_expression(expr: Expr) -> LiteralKind {
@@ -51,6 +48,7 @@ pub fn interpret_expression(expr: Expr) -> LiteralKind {
         Expr::Grouping(group) => interpret_expression(*group),
         Expr::Unary(unary) => interpret_unary(unary),
         Expr::Binary(binary) => interpret_binary(binary),
+        Expr::Ternary(ternary) => interpret_ternary(ternary),
     };
     ret
 }
@@ -106,127 +104,150 @@ fn interpret_binary(
     let right_literal = interpret_expression(*right);
     match operator {
         Token::Minus => {
-            if let (LiteralKind::Number(left_value), LiteralKind::Number(right_value)) =
-                (left_literal, right_literal)
-            {
-                return LiteralKind::Number(left_value - right_value);
-            } else {
-                // Hmm, technically we don't say which one is wrong (or maybe both) but the user can
-                // probably figure it out if we print both.
-                panic!(
-                    "Illegal operand for binary '{}' expression: {:?} {} {:?}",
-                    Token::Minus,
-                    left_literal,
-                    Token::Minus,
-                    right_literal
-                )
+            // TODO: Find a nicer looking way of doing this. I tried double extracting from a tuple,
+            // but the values had to be `move`d into the tuple, so they couldn't be used in the
+            // panic string format.
+            if let LiteralKind::Number(left_value) = left_literal {
+                if let LiteralKind::Number(right_value) = right_literal {
+                    return LiteralKind::Number(left_value - right_value);
+                }
             }
+            // Hmm, technically we don't say which one is wrong (or maybe both) but the user can
+            // probably figure it out if we print both.
+            panic!(
+                "Illegal operand for binary '{}' expression: {:?} {} {:?}",
+                Token::Minus,
+                left_literal,
+                Token::Minus,
+                right_literal
+            )
         }
         Token::Slash => {
-            if let (LiteralKind::Number(left_value), LiteralKind::Number(right_value)) =
-                (left_literal, right_literal)
-            {
-                return LiteralKind::Number(left_value / right_value);
-            } else {
-                panic!(
-                    "Illegal operand for binary '{}' expression: {:?} {} {:?}",
-                    Token::Slash,
-                    left_literal,
-                    Token::Slash,
-                    right_literal
-                )
+            if let LiteralKind::Number(left_value) = left_literal {
+                if let LiteralKind::Number(right_value) = right_literal {
+                    return LiteralKind::Number(left_value / right_value);
+                }
             }
+            panic!(
+                "Illegal operand for binary '{}' expression: {:?} {} {:?}",
+                Token::Slash,
+                left_literal,
+                Token::Slash,
+                right_literal
+            )
         }
         Token::Star => {
-            if let (LiteralKind::Number(left_value), LiteralKind::Number(right_value)) =
-                (left_literal, right_literal)
-            {
-                return LiteralKind::Number(left_value * right_value);
-            } else {
-                panic!(
-                    "Illegal operand for binary '{}' expression: {:?} {} {:?}",
-                    Token::Star,
-                    left_literal,
-                    Token::Star,
-                    right_literal
-                )
+            if let LiteralKind::Number(left_value) = left_literal {
+                if let LiteralKind::Number(right_value) = right_literal {
+                    return LiteralKind::Number(left_value * right_value);
+                }
             }
+            panic!(
+                "Illegal operand for binary '{}' expression: {:?} {} {:?}",
+                Token::Star,
+                left_literal,
+                Token::Star,
+                right_literal
+            )
+        }
+        Token::Plus => {
+            if let LiteralKind::Number(left_value) = left_literal {
+                if let LiteralKind::Number(right_value) = right_literal {
+                    return LiteralKind::Number(left_value + right_value);
+                }
+            }
+            panic!(
+                "Illegal operand for binary '{}' expression: {:?} {} {:?}",
+                Token::Plus,
+                left_literal,
+                Token::Plus,
+                right_literal
+            )
         }
         Token::Greater => {
-            if let (LiteralKind::Number(left_value), LiteralKind::Number(right_value)) =
-                (left_literal, right_literal)
-            {
-                return LiteralKind::Boolean(left_value > right_value);
-            } else {
-                panic!(
-                    "Illegal operand for binary '{}' expression: {:?} {} {:?}",
-                    Token::Greater,
-                    left_literal,
-                    Token::Greater,
-                    right_literal
-                )
+            if let LiteralKind::Number(left_value) = left_literal {
+                if let LiteralKind::Number(right_value) = right_literal {
+                    return LiteralKind::Boolean(left_value > right_value);
+                }
             }
+            panic!(
+                "Illegal operand for binary '{}' expression: {:?} {} {:?}",
+                Token::Greater,
+                left_literal,
+                Token::Greater,
+                right_literal
+            )
         }
         Token::GreaterEqual => {
-            if let (LiteralKind::Number(left_value), LiteralKind::Number(right_value)) =
-                (left_literal, right_literal)
-            {
-                return LiteralKind::Boolean(left_value >= right_value);
-            } else {
-                panic!(
-                    "Illegal operand for binary '{}' expression: {:?} {} {:?}",
-                    Token::GreaterEqual,
-                    left_literal,
-                    Token::GreaterEqual,
-                    right_literal
-                )
+            if let LiteralKind::Number(left_value) = left_literal {
+                if let LiteralKind::Number(right_value) = right_literal {
+                    return LiteralKind::Boolean(left_value >= right_value);
+                }
             }
+            panic!(
+                "Illegal operand for binary '{}' expression: {:?} {} {:?}",
+                Token::GreaterEqual,
+                left_literal,
+                Token::GreaterEqual,
+                right_literal
+            )
         }
         Token::Less => {
-            if let (LiteralKind::Number(left_value), LiteralKind::Number(right_value)) =
-                (left_literal, right_literal)
-            {
-                return LiteralKind::Boolean(left_value < right_value);
-            } else {
-                panic!(
-                    "Illegal operand for binary '{}' expression: {:?} {} {:?}",
-                    Token::Less,
-                    left_literal,
-                    Token::Less,
-                    right_literal
-                )
+            if let LiteralKind::Number(left_value) = left_literal {
+                if let LiteralKind::Number(right_value) = right_literal {
+                    return LiteralKind::Boolean(left_value < right_value);
+                }
             }
+            panic!(
+                "Illegal operand for binary '{}' expression: {:?} {} {:?}",
+                Token::Less,
+                left_literal,
+                Token::Less,
+                right_literal
+            )
         }
         Token::LessEqual => {
-            if let (LiteralKind::Number(left_value), LiteralKind::Number(right_value)) =
-                (left_literal, right_literal)
-            {
-                return LiteralKind::Boolean(left_value <= right_value);
-            } else {
-                panic!(
-                    "Illegal operand for binary '{}' expression: {:?} {} {:?}",
-                    Token::LessEqual,
-                    left_literal,
-                    Token::LessEqual,
-                    right_literal
-                )
+            if let LiteralKind::Number(left_value) = left_literal {
+                if let LiteralKind::Number(right_value) = right_literal {
+                    return LiteralKind::Boolean(left_value <= right_value);
+                }
             }
+            panic!(
+                "Illegal operand for binary '{}' expression: {:?} {} {:?}",
+                Token::LessEqual,
+                left_literal,
+                Token::LessEqual,
+                right_literal
+            )
         }
-        Token::BangEqual => {
-            if let (LiteralKind::Number(left_value), LiteralKind::Number(right_value)) =
-                (left_literal, right_literal)
-            {
-                return LiteralKind::Boolean(left_value <= right_value);
-            } else {
-                panic!(
-                    "Illegal operand for binary '{}' expression: {:?} {} {:?}",
-                    Token::LessEqual,
-                    left_literal,
-                    Token::LessEqual,
-                    right_literal
-                )
-            }
-        }
+        Token::BangEqual => return LiteralKind::Boolean(!is_equal(left_literal, right_literal)),
+        Token::EqualEqual => return LiteralKind::Boolean(is_equal(left_literal, right_literal)),
         _ => panic!("Illegal operator for binary expression: {}", operator),
+    }
+}
+
+fn interpret_ternary(
+    TernaryExpr {
+        condition,
+        left_result,
+        right_result,
+    }: TernaryExpr,
+) -> LiteralKind {
+    let condition_literal = interpret_expression(*condition);
+    // Note, we could check if this is "truthy" instead of an explicit boolean check, but I'd prefer
+    // not to.
+    if let LiteralKind::Boolean(condition_value) = condition_literal {
+        let left_result_literal = interpret_expression(*left_result);
+        let right_result_literal = interpret_expression(*right_result);
+        if condition_value {
+            left_result_literal
+        } else {
+            right_result_literal
+        }
+    } else {
+        panic!(
+            "Non boolean type used as condition in ternary: {:?}",
+            condition_literal
+        );
     }
 }

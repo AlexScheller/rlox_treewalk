@@ -14,6 +14,7 @@ use crate::scanner::{self, WhitespaceKind};
 // unary		-> ( "!" | "-" ) unary | primary ;
 // primary		-> NUMBER| | STRING | "true" | "false" | "nil" | "(" expression ")" ;
 
+// TODO: Really think about how clone and copy are to be implemented here.
 #[derive(Debug, PartialEq)]
 pub enum LiteralKind {
     Number(f64),
