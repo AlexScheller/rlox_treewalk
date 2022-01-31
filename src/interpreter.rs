@@ -237,12 +237,12 @@ fn interpret_ternary(
     // Note, we could check if this is "truthy" instead of an explicit boolean check, but I'd prefer
     // not to.
     if let LiteralKind::Boolean(condition_value) = condition_literal {
-        let left_result_literal = interpret_expression(*left_result);
-        let right_result_literal = interpret_expression(*right_result);
+        // This is an important decision. I'm currently short circuiting, but that doesn't mean I
+        // have to.
         if condition_value {
-            left_result_literal
+            interpret_expression(*left_result)
         } else {
-            right_result_literal
+            interpret_expression(*right_result)
         }
     } else {
         panic!(
