@@ -4,6 +4,8 @@ use std::fs;
 use std::io;
 use std::io::Write;
 
+use crate::errors::ErrorLoggable;
+
 mod ast_printer;
 mod errors;
 mod interpreter;
@@ -61,6 +63,9 @@ fn run_prompt() {
 
 fn run(source: String) {
     let scanner = scanner::Scanner::from_source(source);
+    if scanner.error_log().len() > 0 {
+        errors::report_and_exit(exitcode::DATAERR, scanner.error_log())
+    }
     // println!("Tokens:");
     // for token in scanner.tokens() {
     //     println!("{:?}", token);

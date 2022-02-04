@@ -2,7 +2,7 @@ use std::fmt;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::errors;
-use crate::language_utilities::enum_variant_equal;
+// use crate::language_utilities::enum_variant_equal;
 use crate::source_file;
 
 const USE_EXTENDED_UNICODE: bool = true;
@@ -216,8 +216,11 @@ impl Scanner {
             .graphemes(USE_EXTENDED_UNICODE)
             .map(|grapheme| String::from(grapheme))
             .collect();
-        while let Some(token) = self.scan_next_token() {
-            self.tokens.push(token);
+        while let Some(scan_result) = self.scan_next_token() {
+            match scan_result {
+                Ok(token) => self.tokens.push(token),
+                Err(error) => self.error_log.push(error.description()),
+            }
         }
         self.tokens.push(SourceToken {
             token: Token::Eof,
@@ -226,47 +229,47 @@ impl Scanner {
     }
     // Note that this is the only function that will ever "close" the scanning cursor. All other
     // actions only advance it.
-    fn scan_next_token(&mut self) -> Option<SourceToken> {
+    fn scan_next_token(&mut self) -> Option<Result<SourceToken, errors::Error>> {
         if let Some(symbol) = self.consume_next_symbol() {
-            let token = match symbol.as_ref() {
-                "(" => Token::LeftParen,
-                ")" => Token::RightParen,
-                "{" => Token::LeftBrace,
-                "}" => Token::RightBrace,
-                "," => Token::Comma,
-                "." => Token::Dot,
-                "-" => Token::Minus,
-                "+" => Token::Plus,
-                ";" => Token::Semicolon,
-                "*" => Token::Star,
-                "?" => Token::QuestionMark,
-                ":" => Token::Colon,
+            let scan_result = match symbol.as_ref() {
+                "(" => Ok(Token::LeftParen),
+                ")" => Ok(Token::RightParen),
+                "{" => Ok(Token::LeftBrace),
+                "}" => Ok(Token::RightBrace),
+                "," => Ok(Token::Comma),
+                "." => Ok(Token::Dot),
+                "-" => Ok(Token::Minus),
+                "+" => Ok(Token::Plus),
+                ";" => Ok(Token::Semicolon),
+                "*" => Ok(Token::Star),
+                "?" => Ok(Token::QuestionMark),
+                ":" => Ok(Token::Colon),
                 "!" => {
                     if self.match_next_symbol("=") {
-                        Token::BangEqual
+                        Ok(Token::BangEqual)
                     } else {
-                        Token::Bang
+                        Ok(Token::Bang)
                     }
                 }
                 "=" => {
                     if self.match_next_symbol("=") {
-                        Token::EqualEqual
+                        Ok(Token::EqualEqual)
                     } else {
-                        Token::Equal
+                        Ok(Token::Equal)
                     }
                 }
                 "<" => {
                     if self.match_next_symbol("=") {
-                        Token::LessEqual
+                        Ok(Token::LessEqual)
                     } else {
-                        Token::Less
+                        Ok(Token::Less)
                     }
                 }
                 ">" => {
                     if self.match_next_symbol("=") {
-                        Token::GreaterEqual
+                        Ok(Token::GreaterEqual)
                     } else {
-                        Token::Greater
+                        Ok(Token::Greater)
                     }
                 }
                 "/" => {
@@ -280,58 +283,37 @@ impl Scanner {
                             content.push_str(&symbol);
                             self.consume_next_symbol();
                         }
-                        Token::Comment(content)
+                        Ok(Token::Comment(content))
                     } else {
-                        Token::Slash
+                        Ok(Token::Slash)
                     }
                 }
                 // --- Whitespace ---
-                " " => Token::Whitespace(WhitespaceKind::Space),
-                "\r" => Token::Whitespace(WhitespaceKind::Return),
-                "\t" => Token::Whitespace(WhitespaceKind::Tab),
-                "\n" => Token::Whitespace(WhitespaceKind::Newline),
-                "\"" => {
-                    if let Some(string_value) = self.consume_string() {
-                        Token::String(string_value[1..string_value.len() - 1].to_string())
-                    } else {
-                        Token::Error
-                    }
-                }
-                digit if is_digit(digit) => {
-                    if let Some(number_value) = self.consume_number() {
-                        Token::Number(number_value)
-                    } else {
-                        Token::Error
-                    }
-                }
-                identifier if is_alpha(identifier) => {
-                    if let Some(identifier_value) = self.consume_identifier() {
-                        if let Some(keyword) = match_keyword(&identifier_value) {
-                            keyword
-                        } else {
-                            Token::Identifier(identifier_value)
-                        }
-                    } else {
-                        Token::Error
-                    }
-                }
-                _ => {
-                    self.error_log
-                        .log(self.cursor, &symbol, "Unexpected character");
-                    Token::Error
-                }
+                " " => Ok(Token::Whitespace(WhitespaceKind::Space)),
+                "\r" => Ok(Token::Whitespace(WhitespaceKind::Return)),
+                "\t" => Ok(Token::Whitespace(WhitespaceKind::Tab)),
+                "\n" => Ok(Token::Whitespace(WhitespaceKind::Newline)),
+                "\"" => self.consume_string(),
+                digit if is_digit(digit) => self.consume_number(),
+                identifier if is_alpha(identifier) => self.consume_identifier(),
+                _ => Err(errors::Error::Scanning(errors::ErrorDescription {
+                    subject: String::from(symbol),
+                    location: self.cursor,
+                    description: String::from("Unexpected character"),
+                })),
             };
-            let location_span = self.cursor;
+            let ret = match scan_result {
+                Ok(token) => {
+                    let location_span = self.cursor;
+                    Some(Ok(SourceToken {
+                        token,
+                        location_span,
+                    }))
+                }
+                Err(error) => Some(Err(error)),
+            };
             self.cursor.close();
-            if !enum_variant_equal(&token, &Token::Error) {
-                Some(SourceToken {
-                    token,
-                    location_span,
-                })
-            } else {
-                errors::exit_on_error(exitcode::DATAERR, &self.error_log);
-                None
-            }
+            ret
         } else {
             None
         }
@@ -368,23 +350,30 @@ impl Scanner {
             None
         }
     }
-    fn consume_string(&mut self) -> Option<String> {
+    fn consume_string(&mut self) -> Result<Token, errors::Error> {
         while let Some(symbol) = self.peek_next_symbol() {
             self.cursor.end.increment(&symbol);
             if symbol == "\"" {
-                return Some(self.source_substring(self.cursor));
+                let string_value = self.source_substring(self.cursor);
+                return Ok(Token::String(
+                    string_value[1..string_value.len() - 1].to_string(),
+                ));
             }
         }
-        let error_string = &self.source_substring(self.cursor);
-        self.error_log
-            .log(self.cursor, error_string, "Unterminated String");
-        None
+        let error_string = self.source_substring(self.cursor);
+        Err(errors::Error::Scanning(errors::ErrorDescription {
+            subject: error_string,
+            location: self.cursor,
+            description: String::from("Unterminated String"),
+        }))
     }
     fn source_substring(&self, cursor: source_file::SourceSpan) -> String {
         self.source[cursor.start.index..cursor.end.index].join("")
     }
-    // TODO: This function is crunchy as hell, also refactor peeking?
-    fn consume_number(&mut self) -> Option<f64> {
+    // TODO: This function is crunchy as hell, also refactor peeking? I think this technically
+    // allows numbers like "10."
+    // TODO: Something seems fishy that this doesn't return any errors...
+    fn consume_number(&mut self) -> Result<Token, errors::Error> {
         // Consume all digits until you run out.
         // TODO: Duplicated code.
         while let Some(symbol) = self.peek_next_symbol() {
@@ -413,13 +402,14 @@ impl Scanner {
                 }
             }
         }
-        let ret = self
+        let value = self
             .source_substring(self.cursor)
             .parse::<f64>()
             .expect("Internal error parsing float!");
-        Some(ret)
+        Ok(Token::Number(value))
     }
-    fn consume_identifier(&mut self) -> Option<String> {
+    // TODO: Another one that doesn't return errors??
+    fn consume_identifier(&mut self) -> Result<Token, errors::Error> {
         while let Some(symbol) = self.peek_next_symbol() {
             if is_alpha_numeric(&symbol) {
                 self.consume_next_symbol();
@@ -427,6 +417,17 @@ impl Scanner {
                 break;
             }
         }
-        Some(self.source_substring(self.cursor))
+        let value = self.source_substring(self.cursor);
+        if let Some(keyword) = match_keyword(&value) {
+            Ok(keyword)
+        } else {
+            Ok(Token::Identifier(value))
+        }
+    }
+}
+
+impl errors::ErrorLoggable for Scanner {
+    fn error_log(&self) -> &errors::ErrorLog {
+        &self.error_log
     }
 }

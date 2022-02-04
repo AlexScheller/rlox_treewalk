@@ -4,75 +4,118 @@ use std::process;
 use crate::source_file;
 
 pub struct ErrorDescription {
-	pub subject: String,
-	pub location: source_file::SourceSpan,
-	pub description: String,
+    pub subject: String,
+    pub location: source_file::SourceSpan,
+    pub description: String,
 }
 
 impl fmt::Display for ErrorDescription {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		let ErrorDescription {
-			subject,
-			location,
-			description,
-		} = self;
-		write!(
-			f,
-			"[line: {}, col: {}] Error ({}): {}",
-			location.start.line, location.start.column, description, subject
-		)
-	}
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let ErrorDescription {
+            subject,
+            location,
+            description,
+        } = self;
+        write!(
+            f,
+            "[line: {}, col: {}] Error ({}): {}",
+            location.start.line, location.start.column, description, subject
+        )
+    }
 }
 
+// Right now these aren't really used... Rather than a log of heterogenous errors, each system
+// maintains it's own contextual log of error descriptions.
 pub enum Error {
-	Syntax(ErrorDescription),
+    Scanning(ErrorDescription),
+    Parsing(ErrorDescription),
 }
 
-impl fmt::Display for Error {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		let Error::Syntax(description) = self;
-		write!(f, "{}", description)
-	}
+// TODO: This feels wrong.
+impl Error {
+    pub fn description(&self) -> ErrorDescription {
+        let description = match self {
+            &Self::Scanning(description) => description,
+            &Self::Parsing(description) => description,
+        };
+        description
+    }
 }
+
+// pub enum Error {
+//     Scanning(ErrorDescription),
+//     Parsing(ErrorDescription),
+// }
+
+// impl fmt::Display for Error {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         let Error::Syntax(description) = self;
+// 		match self {
+// 			Error::Scanning(description) => write!(f, "{}", description)
+// 		}
+//     }
+// }
 
 pub struct ErrorLog {
-	pub errors: Vec<Error>,
+    pub errors: Vec<ErrorDescription>,
 }
 
 impl ErrorLog {
-	pub fn new() -> Self {
-		ErrorLog { errors: Vec::new() }
-	}
-	pub fn log(
-		&mut self,
-		location: source_file::SourceSpan,
-		subject: &str,
-		description: &str,
-	) -> &Self {
-		self.errors.push(Error::Syntax(ErrorDescription {
-			subject: String::from(subject),
-			location,
-			description: String::from(description),
-		}));
-		self
-	}
+    pub fn new() -> Self {
+        ErrorLog { errors: Vec::new() }
+    }
+    pub fn log(
+        &mut self,
+        location: source_file::SourceSpan,
+        subject: &str,
+        description: &str,
+    ) -> &Self {
+        self.errors.push(ErrorDescription {
+            subject: String::from(subject),
+            location,
+            description: String::from(description),
+        });
+        self
+    }
+    pub fn push(&mut self, error: ErrorDescription) {
+        self.errors.push(error);
+    }
+    pub fn len(&self) -> usize {
+        self.errors.len()
+    }
 }
 
-impl fmt::Display for ErrorLog {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		let mut result = String::new();
-		for error in self.errors.iter() {
-			result.push_str(&error.to_string());
-		}
-		write!(f, "{}", result)
-	}
+// Should this really be implemented as an actual `fmt::Display`?
+// impl fmt::Display for ErrorLog {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         let mut result = String::new();
+//         for error in self.errors.iter() {
+//             result.push_str(&format!("{}\n", error.to_string()).to_string());
+//         }
+//         write!(f, "{}", result)
+//     }
+// }
+
+pub trait ErrorLoggable {
+    fn error_log(&self) -> &ErrorLog;
 }
 
 pub fn exit_with_code(code: exitcode::ExitCode) {
-	process::exit(code);
+    process::exit(code);
 }
 
-pub fn exit_on_error(code: exitcode::ExitCode, error_log: &ErrorLog) {
-	println!("{}", error_log);
-	exit_with_code(code);
+// pub fn exit_on_error(code: exitcode::ExitCode, error_log: &ErrorLog) {
+//     println!("{}", error_log);
+//     exit_with_code(code);
+// }
+
+fn print_error_log(log: &ErrorLog) {
+    for error in log.errors.iter() {
+        println!("{}", error.to_string());
+    }
+}
+
+pub fn report_and_exit(code: exitcode::ExitCode, error_log: &ErrorLog) {
+    print_error_log(error_log);
+    exit_with_code(code);
 }

@@ -1,5 +1,6 @@
 use crate::language_utilities::enum_variant_equal;
 use crate::scanner::{self, WhitespaceKind};
+use crate::{errors, source_file};
 
 // -----| Expression Grammer |-----
 //
@@ -77,12 +78,21 @@ const TERNARY_BRANCH_TOKEN: scanner::Token = scanner::Token::Colon;
 
 pub struct Parser {
     tokens: Vec<scanner::SourceToken>,
+    /// The actual index we use to iterate throuh the tokens.
     index: usize,
+    /// The subset of the source currently being investigated, only used for reporting.
+    cursor: source_file::SourceSpan,
+    error_log: errors::ErrorLog,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<scanner::SourceToken>) -> Self {
-        Parser { tokens, index: 0 }
+        Parser {
+            tokens,
+            index: 0,
+            cursor: source_file::SourceSpan::new(),
+            error_log: errors::ErrorLog::new(),
+        }
     }
     // Driver
     pub fn parse(&mut self) -> Expr {
@@ -109,7 +119,11 @@ impl Parser {
                 return Some(token.clone());
             }
         }
-        panic!("Consumed all tokens without encountering EOF");
+        self.error_log.log(
+            self.cursor,
+            subject,
+            "Consumed all tokens without encountering EOF",
+        )
     }
     fn advance_to_next_token(&mut self) -> Option<&scanner::SourceToken> {
         if let Some(token) = self.tokens.get(self.index) {
@@ -138,7 +152,9 @@ impl Parser {
     // TODO:? Make a helper function for binaries that just takes a list of the tokens necesary and
     // the next function to match? Might look a bit weird. Also, it may be slightly faster to have
     // them as separate functions. Also, it may become convenient that they are separate later.
-    fn expression(&mut self) -> Expr {
+
+    // TODO: Read up on error handling
+    fn expression(&mut self) -> Result<Expr, errors::Error> {
         self.ternary()
     }
     fn ternary(&mut self) -> Expr {
