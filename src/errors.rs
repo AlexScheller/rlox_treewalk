@@ -3,8 +3,9 @@ use std::process;
 
 use crate::source_file;
 
+#[derive(Clone)]
 pub struct ErrorDescription {
-    pub subject: String,
+    pub subject: Option<String>,
     pub location: source_file::SourceSpan,
     pub description: String,
 }
@@ -16,29 +17,39 @@ impl fmt::Display for ErrorDescription {
             location,
             description,
         } = self;
-        write!(
-            f,
-            "[line: {}, col: {}] Error ({}): {}",
-            location.start.line, location.start.column, description, subject
-        )
+        if let Some(subject_value) = subject {
+            write!(
+                f,
+                "[line: {}, col: {}] Error ({}): {}",
+                location.start.line, location.start.column, description, subject_value
+            )
+        } else {
+            write!(
+                f,
+                "[line: {}, col: {}] Error ({})",
+                location.start.line, location.start.column, description
+            )
+        }
     }
 }
 
 // Right now these aren't really used... Rather than a log of heterogenous errors, each system
-// maintains it's own contextual log of error descriptions.
+// maintains it's own contextual log of error descriptions. Keeping in case I discover a good reason
+// they need to be differentiated later.
 pub enum Error {
     Scanning(ErrorDescription),
     Parsing(ErrorDescription),
+    // Runtime(ErrorDescription)
 }
 
 // TODO: This feels wrong.
 impl Error {
     pub fn description(&self) -> ErrorDescription {
         let description = match self {
-            &Self::Scanning(description) => description,
-            &Self::Parsing(description) => description,
+            Error::Scanning(description) => description,
+            Error::Parsing(description) => description,
         };
-        description
+        description.clone()
     }
 }
 
@@ -64,19 +75,19 @@ impl ErrorLog {
     pub fn new() -> Self {
         ErrorLog { errors: Vec::new() }
     }
-    pub fn log(
-        &mut self,
-        location: source_file::SourceSpan,
-        subject: &str,
-        description: &str,
-    ) -> &Self {
-        self.errors.push(ErrorDescription {
-            subject: String::from(subject),
-            location,
-            description: String::from(description),
-        });
-        self
-    }
+    // pub fn log(
+    //     &mut self,
+    //     location: source_file::SourceSpan,
+    //     subject: &str,
+    //     description: &str,
+    // ) -> &Self {
+    //     self.errors.push(ErrorDescription {
+    //         subject: Some(String::from(subject)),
+    //         location,
+    //         description: String::from(description),
+    //     });
+    //     self
+    // }
     pub fn push(&mut self, error: ErrorDescription) {
         self.errors.push(error);
     }

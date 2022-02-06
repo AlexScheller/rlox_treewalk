@@ -1,6 +1,6 @@
+use crate::errors;
 use crate::language_utilities::enum_variant_equal;
 use crate::scanner::{self, WhitespaceKind};
-use crate::{errors, source_file};
 
 // -----| Expression Grammer |-----
 //
@@ -80,9 +80,8 @@ pub struct Parser {
     tokens: Vec<scanner::SourceToken>,
     /// The actual index we use to iterate throuh the tokens.
     index: usize,
-    /// The subset of the source currently being investigated, only used for reporting.
-    cursor: source_file::SourceSpan,
-    error_log: errors::ErrorLog,
+    // cursor: source_file::SourceSpan,
+    // error_log: errors::ErrorLog, // TODO: Use this
 }
 
 impl Parser {
@@ -90,12 +89,12 @@ impl Parser {
         Parser {
             tokens,
             index: 0,
-            cursor: source_file::SourceSpan::new(),
-            error_log: errors::ErrorLog::new(),
+            // cursor: source_file::SourceSpan::new(),
+            // error_log: errors::ErrorLog::new(),
         }
     }
     // Driver
-    pub fn parse(&mut self) -> Expr {
+    pub fn parse(&mut self) -> Result<Expr, errors::Error> {
         // The tokens provided to the parser may contain whitespace.
         // This seems clunky, we only care about the type, not the value
         let whitespace_exemplar = scanner::Token::Whitespace(WhitespaceKind::Space);
@@ -108,6 +107,9 @@ impl Parser {
         self.expression()
     }
     // Token reading.
+    // TODO: Reconcile the fact that we nominally deal with "previous" and "next" tokens in these
+    // functions, but not "current" tokens. I guess that's not a big deal, the "current" tokens are
+    // only ever current within the context of a given function?
     fn peek_next_token(&self) -> Option<scanner::SourceToken> {
         // Look into this, I have to do it this way to avoid mutable/immutable borrow conflicts.
         // maybe because if I just return `self.tokens.get(self.index)` there's some kind of
@@ -119,11 +121,9 @@ impl Parser {
                 return Some(token.clone());
             }
         }
-        self.error_log.log(
-            self.cursor,
-            subject,
-            "Consumed all tokens without encountering EOF",
-        )
+        // We panic, rather than returning an error, because the Eof sentinal should have been
+        // appended to the token list *by the scanner*.
+        panic!("Consumed all tokens without encountering EOF");
     }
     fn advance_to_next_token(&mut self) -> Option<&scanner::SourceToken> {
         if let Some(token) = self.tokens.get(self.index) {
@@ -136,17 +136,38 @@ impl Parser {
         }
         panic!("Consumed all tokens without encountering EOF");
     }
-    fn consume_next_token(&mut self, expected_token: scanner::Token) -> &scanner::SourceToken {
+    fn consume_next_token(
+        &mut self,
+        expected_token: scanner::SourceToken,
+    ) -> Result<&scanner::SourceToken, errors::Error> {
         if let Some(next_token) = self.advance_to_next_token() {
-            if next_token.token == expected_token {
-                return next_token;
+            if next_token.token == expected_token.token {
+                return Ok(next_token);
             }
-            panic!(
-                "Expected '{}' after expression, instead found '{}'",
-                expected_token, next_token.token
-            );
+            return Err(errors::Error::Parsing(errors::ErrorDescription {
+                subject: None,
+                location: next_token.location_span,
+                description: format!(
+                    "Expected '{}' after expression, instead found '{}'",
+                    expected_token.token, next_token.token
+                ),
+            }));
         };
-        panic!("Reached end of file while expecting '{}'", expected_token);
+        Err(errors::Error::Parsing(errors::ErrorDescription {
+            subject: None,
+            location: expected_token.location_span,
+            description: format!(
+                "Reached end of file while expecting '{}'",
+                expected_token.token
+            ),
+        }))
+    }
+    // Maybe would be better to use a cursor?
+    fn previous_token(&self) -> scanner::SourceToken {
+        if self.index > 0 {
+            return self.tokens.get(self.index - 1).unwrap().clone();
+        }
+        panic!("Attempted to read previous token while at index 0");
     }
     // Rules
     // TODO:? Make a helper function for binaries that just takes a list of the tokens necesary and
@@ -157,14 +178,20 @@ impl Parser {
     fn expression(&mut self) -> Result<Expr, errors::Error> {
         self.ternary()
     }
-    fn ternary(&mut self) -> Expr {
-        let mut expr = self.equality();
+    fn ternary(&mut self) -> Result<Expr, errors::Error> {
+        let mut expr = self.equality()?;
         while let Some(source_token) = self.peek_next_token() {
             if source_token.token == TERNARY_TEST_TOKEN {
                 self.advance_to_next_token();
-                let left_result = self.equality();
-                self.consume_next_token(TERNARY_BRANCH_TOKEN);
-                let right_result = self.equality();
+                let left_result = self.equality()?;
+                // TODO: Deal with this. I'm creating a synthetic token with the location of the
+                // current token, but the value of the token I'm seeking. This is "correct" when it
+                // comes to locating the error, but still feels wrong.
+                self.consume_next_token(scanner::SourceToken {
+                    token: TERNARY_BRANCH_TOKEN,
+                    ..source_token
+                })?;
+                let right_result = self.equality()?;
                 expr = Expr::Ternary(TernaryExpr {
                     condition: Box::new(expr),
                     left_result: Box::new(left_result),
@@ -174,15 +201,15 @@ impl Parser {
                 break;
             }
         }
-        expr
+        Ok(expr)
     }
-    fn equality(&mut self) -> Expr {
-        let mut expr = self.comparison();
+    fn equality(&mut self) -> Result<Expr, errors::Error> {
+        let mut expr = self.comparison()?;
         while let Some(source_token) = self.peek_next_token() {
             if EQUALITY_TOKENS.contains(&source_token.token) {
                 self.advance_to_next_token();
                 let operator = source_token.token.clone();
-                let right = self.comparison();
+                let right = self.comparison()?;
                 expr = Expr::Binary(BinaryExpr {
                     left: Box::new(expr),
                     operator,
@@ -192,15 +219,15 @@ impl Parser {
                 break;
             }
         }
-        expr
+        Ok(expr)
     }
-    fn comparison(&mut self) -> Expr {
-        let mut expr = self.term();
+    fn comparison(&mut self) -> Result<Expr, errors::Error> {
+        let mut expr = self.term()?;
         while let Some(source_token) = self.peek_next_token() {
             if COMPARISON_TOKENS.contains(&source_token.token) {
                 self.advance_to_next_token();
                 let operator = source_token.token.clone();
-                let right = self.term();
+                let right = self.term()?;
                 expr = Expr::Binary(BinaryExpr {
                     left: Box::new(expr),
                     operator,
@@ -210,15 +237,15 @@ impl Parser {
                 break;
             }
         }
-        expr
+        Ok(expr)
     }
-    fn term(&mut self) -> Expr {
-        let mut expr = self.factor();
+    fn term(&mut self) -> Result<Expr, errors::Error> {
+        let mut expr = self.factor()?;
         while let Some(source_token) = self.peek_next_token() {
             if TERM_TOKENS.contains(&source_token.token) {
                 self.advance_to_next_token();
                 let operator = source_token.token.clone();
-                let right = self.factor();
+                let right = self.factor()?;
                 expr = Expr::Binary(BinaryExpr {
                     left: Box::new(expr),
                     operator,
@@ -228,15 +255,15 @@ impl Parser {
                 break;
             }
         }
-        expr
+        Ok(expr)
     }
-    fn factor(&mut self) -> Expr {
-        let mut expr = self.unary();
+    fn factor(&mut self) -> Result<Expr, errors::Error> {
+        let mut expr = self.unary()?;
         while let Some(source_token) = self.peek_next_token() {
             if FACTOR_TOKENS.contains(&source_token.token) {
                 self.advance_to_next_token();
                 let operator = source_token.token.clone();
-                let right = self.unary();
+                let right = self.unary()?;
                 expr = Expr::Binary(BinaryExpr {
                     left: Box::new(expr),
                     operator,
@@ -246,43 +273,51 @@ impl Parser {
                 break;
             }
         }
-        expr
+        Ok(expr)
     }
-    fn unary(&mut self) -> Expr {
+    fn unary(&mut self) -> Result<Expr, errors::Error> {
         if let Some(source_token) = self.peek_next_token() {
             if UNARY_TOKENS.contains(&source_token.token) {
                 self.advance_to_next_token();
                 let operator = source_token.token.clone();
-                let right = self.unary();
-                return Expr::Unary(UnaryExpr {
+                let right = self.unary()?;
+                return Ok(Expr::Unary(UnaryExpr {
                     operator,
                     right: Box::new(right),
-                });
+                }));
             }
         }
         self.primary()
     }
-    fn primary(&mut self) -> Expr {
+    fn primary(&mut self) -> Result<Expr, errors::Error> {
         if let Some(source_token) = self.peek_next_token() {
             self.advance_to_next_token();
             match source_token.token {
-                scanner::Token::False => Expr::Literal(LiteralKind::Boolean(false)),
-                scanner::Token::True => Expr::Literal(LiteralKind::Boolean(true)),
-                scanner::Token::Nil => Expr::Literal(LiteralKind::Nil),
-                scanner::Token::Number(value) => Expr::Literal(LiteralKind::Number(value)),
-                scanner::Token::String(value) => Expr::Literal(LiteralKind::String(value)),
+                scanner::Token::False => Ok(Expr::Literal(LiteralKind::Boolean(false))),
+                scanner::Token::True => Ok(Expr::Literal(LiteralKind::Boolean(true))),
+                scanner::Token::Nil => Ok(Expr::Literal(LiteralKind::Nil)),
+                scanner::Token::Number(value) => Ok(Expr::Literal(LiteralKind::Number(value))),
+                scanner::Token::String(value) => Ok(Expr::Literal(LiteralKind::String(value))),
                 scanner::Token::LeftParen => {
-                    let expr = self.expression();
-                    self.consume_next_token(scanner::Token::RightParen);
-                    Expr::Grouping(Box::new(expr))
+                    let expr = self.expression()?;
+                    self.consume_next_token(scanner::SourceToken {
+                        token: scanner::Token::RightParen,
+                        ..source_token
+                    })?;
+                    Ok(Expr::Grouping(Box::new(expr)))
                 }
-                _ => panic!(
-                    "No rule satisfies termination by token: {}",
-                    source_token.token
-                ),
+                _ => Err(errors::Error::Parsing(errors::ErrorDescription {
+                    subject: Some(source_token.token.to_string()),
+                    location: source_token.location_span,
+                    description: String::from("No rule satisifed termination by token"),
+                })),
             }
         } else {
-            panic!("Ran out of tokens while satisfying rule")
+            Err(errors::Error::Parsing(errors::ErrorDescription {
+                subject: None,
+                location: self.previous_token().location_span,
+                description: String::from("Ran out of tokens while satisfying rule"),
+            }))
         }
     }
 }

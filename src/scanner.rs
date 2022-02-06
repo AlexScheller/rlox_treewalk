@@ -69,7 +69,6 @@ pub enum Token {
     Comment(String),
     Whitespace(WhitespaceKind),
     Eof,
-    Error, // This seems bad...
 }
 
 impl fmt::Display for Token {
@@ -118,7 +117,6 @@ impl fmt::Display for Token {
             Token::Comment(comment) => format!("comment \"{}\"", comment),
             Token::Whitespace(whitespace) => format!("whitespace {:?}", whitespace),
             Token::Eof => String::from("Eof"),
-            Token::Error => String::from("Error"),
         };
         write!(f, "{}", value)
     }
@@ -297,7 +295,7 @@ impl Scanner {
                 digit if is_digit(digit) => self.consume_number(),
                 identifier if is_alpha(identifier) => self.consume_identifier(),
                 _ => Err(errors::Error::Scanning(errors::ErrorDescription {
-                    subject: String::from(symbol),
+                    subject: Some(String::from(symbol)),
                     location: self.cursor,
                     description: String::from("Unexpected character"),
                 })),
@@ -362,7 +360,7 @@ impl Scanner {
         }
         let error_string = self.source_substring(self.cursor);
         Err(errors::Error::Scanning(errors::ErrorDescription {
-            subject: error_string,
+            subject: Some(error_string),
             location: self.cursor,
             description: String::from("Unterminated String"),
         }))
