@@ -5,7 +5,7 @@ use crate::source_file;
 
 pub struct ErrorDescription {
     pub subject: Option<String>,
-    pub location: source_file::SourceSpan,
+    pub location: Option<source_file::SourceSpan>,
     pub description: String,
 }
 
@@ -49,24 +49,27 @@ impl fmt::Display for Error {
             ErrorKind::Scanning | ErrorKind::Parsing => String::from("Syntax"),
             ErrorKind::Runtime => String::from("Runtime"),
         };
-        let ErrorDescription {
-            subject,
-            location,
-            description,
-        } = &self.description;
-        if let Some(subject_value) = subject {
-            write!(
-                f,
-                "[line: {}, col: {}] {} ({}): {}",
-                location.start.line, location.start.column, kind_string, description, subject_value
+
+        let location_string = if let Some(location_value) = self.description.location {
+            format!(
+                "[line: {}, col: {}]",
+                location_value.start.line, location_value.start.column
             )
         } else {
-            write!(
-                f,
-                "[line: {}, col: {}] {} ({})",
-                location.start.line, location.start.column, kind_string, description
-            )
-        }
+            String::from("")
+        };
+
+        let subject_string = if let Some(subject_value) = &self.description.subject {
+            format!(": {}", subject_value)
+        } else {
+            String::from("")
+        };
+
+        write!(
+            f,
+            "{} {} Error ({}){}",
+            location_string, kind_string, self.description.description, subject_string
+        )
     }
 }
 // pub enum Error {

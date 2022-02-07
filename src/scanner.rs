@@ -298,7 +298,7 @@ impl Scanner {
                     kind: errors::ErrorKind::Scanning,
                     description: errors::ErrorDescription {
                         subject: Some(String::from(symbol)),
-                        location: self.cursor,
+                        location: Some(self.cursor),
                         description: String::from("Unexpected character"),
                     },
                 }),
@@ -366,7 +366,7 @@ impl Scanner {
             kind: errors::ErrorKind::Scanning,
             description: errors::ErrorDescription {
                 subject: Some(error_string),
-                location: self.cursor,
+                location: Some(self.cursor),
                 description: String::from("Unterminated String"),
             },
         })

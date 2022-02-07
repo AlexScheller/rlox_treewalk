@@ -81,15 +81,20 @@ fn run(source: String) {
     match expression {
         Ok(expression) => {
             println!("{}", ast_printer::expr_to_ast_string(&expression));
-            let value = interpreter::interpret_expression(expression);
-            println!("The result of this expression is: {:?}", value);
+            let interpretation = interpreter::interpret_expression(expression);
+            match interpretation {
+                Ok(value) => println!("The result of this expression is: {:?}", value),
+                Err(error) => {
+                    let mut log = errors::ErrorLog::new();
+                    log.push(error);
+                    errors::report_and_exit(exitcode::SOFTWARE, &log)
+                }
+            }
         }
         Err(error) => {
             let mut log = errors::ErrorLog::new();
             log.push(error);
-            // TODO: Differentiate between parsing and runtime errors. A parsing errors should be
-            // exitcode::DATAERR, while a runtime error should be exitcode::SOFTWARE
-            errors::report_and_exit(exitcode::SOFTWARE, &log);
+            errors::report_and_exit(exitcode::DATAERR, &log);
         }
     }
 }

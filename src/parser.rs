@@ -151,7 +151,7 @@ impl Parser {
                 kind: errors::ErrorKind::Parsing,
                 description: errors::ErrorDescription {
                     subject: None,
-                    location: next_token.location_span,
+                    location: Some(next_token.location_span),
                     description: format!(
                         "Expected '{}' after expression, instead found '{}'",
                         expected_token.token, next_token.token
@@ -163,7 +163,7 @@ impl Parser {
             kind: errors::ErrorKind::Parsing,
             description: errors::ErrorDescription {
                 subject: None,
-                location: expected_token.location_span,
+                location: Some(expected_token.location_span),
                 description: format!(
                     "Reached end of file while expecting '{}'",
                     expected_token.token
@@ -318,9 +318,12 @@ impl Parser {
                 _ => Err(errors::Error {
                     kind: errors::ErrorKind::Parsing,
                     description: errors::ErrorDescription {
-                        subject: Some(source_token.token.to_string()),
-                        location: source_token.location_span,
-                        description: String::from("No rule satisifed termination by token"),
+                        subject: None,
+                        location: Some(source_token.location_span),
+                        description: format!(
+                            "Expected value or expression, found '{}'",
+                            source_token.token
+                        ), // TODO: Better wording?
                     },
                 }),
             }
@@ -329,7 +332,7 @@ impl Parser {
                 kind: errors::ErrorKind::Parsing,
                 description: errors::ErrorDescription {
                     subject: None,
-                    location: self.previous_token().location_span,
+                    location: Some(self.previous_token().location_span),
                     description: String::from("Ran out of tokens while satisfying rule"),
                 },
             })
