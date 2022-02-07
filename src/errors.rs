@@ -3,56 +3,72 @@ use std::process;
 
 use crate::source_file;
 
-#[derive(Clone)]
 pub struct ErrorDescription {
     pub subject: Option<String>,
     pub location: source_file::SourceSpan,
     pub description: String,
 }
 
-impl fmt::Display for ErrorDescription {
+// impl fmt::Display for ErrorDescription {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         let ErrorDescription {
+//             subject,
+//             location,
+//             description,
+//         } = self;
+//         if let Some(subject_value) = subject {
+//             write!(
+//                 f,
+//                 "[line: {}, col: {}] Error ({}): {}",
+//                 location.start.line, location.start.column, description, subject_value
+//             )
+//         } else {
+//             write!(
+//                 f,
+//                 "[line: {}, col: {}] Error ({})",
+//                 location.start.line, location.start.column, description
+//             )
+//         }
+//     }
+// }
+
+pub enum ErrorKind {
+    Scanning,
+    Parsing,
+    Runtime,
+}
+
+pub struct Error {
+    pub kind: ErrorKind,
+    pub description: ErrorDescription,
+}
+
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let kind_string = match self.kind {
+            ErrorKind::Scanning | ErrorKind::Parsing => String::from("Syntax"),
+            ErrorKind::Runtime => String::from("Runtime"),
+        };
         let ErrorDescription {
             subject,
             location,
             description,
-        } = self;
+        } = &self.description;
         if let Some(subject_value) = subject {
             write!(
                 f,
-                "[line: {}, col: {}] Error ({}): {}",
-                location.start.line, location.start.column, description, subject_value
+                "[line: {}, col: {}] {} ({}): {}",
+                location.start.line, location.start.column, kind_string, description, subject_value
             )
         } else {
             write!(
                 f,
-                "[line: {}, col: {}] Error ({})",
-                location.start.line, location.start.column, description
+                "[line: {}, col: {}] {} ({})",
+                location.start.line, location.start.column, kind_string, description
             )
         }
     }
 }
-
-// Right now these aren't really used... Rather than a log of heterogenous errors, each system
-// maintains it's own contextual log of error descriptions. Keeping in case I discover a good reason
-// they need to be differentiated later.
-pub enum Error {
-    Scanning(ErrorDescription),
-    Parsing(ErrorDescription),
-    // Runtime(ErrorDescription)
-}
-
-// TODO: This feels wrong.
-impl Error {
-    pub fn description(&self) -> ErrorDescription {
-        let description = match self {
-            Error::Scanning(description) => description,
-            Error::Parsing(description) => description,
-        };
-        description.clone()
-    }
-}
-
 // pub enum Error {
 //     Scanning(ErrorDescription),
 //     Parsing(ErrorDescription),
@@ -68,7 +84,7 @@ impl Error {
 // }
 
 pub struct ErrorLog {
-    pub errors: Vec<ErrorDescription>,
+    pub errors: Vec<Error>,
 }
 
 impl ErrorLog {
@@ -88,7 +104,7 @@ impl ErrorLog {
     //     });
     //     self
     // }
-    pub fn push(&mut self, error: ErrorDescription) {
+    pub fn push(&mut self, error: Error) {
         self.errors.push(error);
     }
     pub fn len(&self) -> usize {
@@ -120,7 +136,7 @@ pub fn exit_with_code(code: exitcode::ExitCode) {
 //     exit_with_code(code);
 // }
 
-fn print_error_log(log: &ErrorLog) {
+pub fn print_error_log(log: &ErrorLog) {
     for error in log.errors.iter() {
         println!("{}", error.to_string());
     }

@@ -217,7 +217,7 @@ impl Scanner {
         while let Some(scan_result) = self.scan_next_token() {
             match scan_result {
                 Ok(token) => self.tokens.push(token),
-                Err(error) => self.error_log.push(error.description()),
+                Err(error) => self.error_log.push(error),
             }
         }
         self.tokens.push(SourceToken {
@@ -294,11 +294,14 @@ impl Scanner {
                 "\"" => self.consume_string(),
                 digit if is_digit(digit) => self.consume_number(),
                 identifier if is_alpha(identifier) => self.consume_identifier(),
-                _ => Err(errors::Error::Scanning(errors::ErrorDescription {
-                    subject: Some(String::from(symbol)),
-                    location: self.cursor,
-                    description: String::from("Unexpected character"),
-                })),
+                _ => Err(errors::Error {
+                    kind: errors::ErrorKind::Scanning,
+                    description: errors::ErrorDescription {
+                        subject: Some(String::from(symbol)),
+                        location: self.cursor,
+                        description: String::from("Unexpected character"),
+                    },
+                }),
             };
             let ret = match scan_result {
                 Ok(token) => {
@@ -359,11 +362,14 @@ impl Scanner {
             }
         }
         let error_string = self.source_substring(self.cursor);
-        Err(errors::Error::Scanning(errors::ErrorDescription {
-            subject: Some(error_string),
-            location: self.cursor,
-            description: String::from("Unterminated String"),
-        }))
+        Err(errors::Error {
+            kind: errors::ErrorKind::Scanning,
+            description: errors::ErrorDescription {
+                subject: Some(error_string),
+                location: self.cursor,
+                description: String::from("Unterminated String"),
+            },
+        })
     }
     fn source_substring(&self, cursor: source_file::SourceSpan) -> String {
         self.source[cursor.start.index..cursor.end.index].join("")

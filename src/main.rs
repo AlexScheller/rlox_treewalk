@@ -65,8 +65,11 @@ fn run_prompt() {
 // scanning.
 fn run(source: String) {
     let scanner = scanner::Scanner::from_source(source);
+    // if scanner.error_log().len() > 0 {
+    //     errors::report_and_exit(exitcode::DATAERR, scanner.error_log())
+    // }
     if scanner.error_log().len() > 0 {
-        errors::report_and_exit(exitcode::DATAERR, scanner.error_log())
+        errors::print_error_log(scanner.error_log());
     }
     // println!("Tokens:");
     // for token in scanner.tokens() {
@@ -83,7 +86,7 @@ fn run(source: String) {
         }
         Err(error) => {
             let mut log = errors::ErrorLog::new();
-            log.push(error.description());
+            log.push(error);
             // TODO: Differentiate between parsing and runtime errors. A parsing errors should be
             // exitcode::DATAERR, while a runtime error should be exitcode::SOFTWARE
             errors::report_and_exit(exitcode::SOFTWARE, &log);

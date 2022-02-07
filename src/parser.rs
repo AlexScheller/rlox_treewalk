@@ -80,8 +80,9 @@ pub struct Parser {
     tokens: Vec<scanner::SourceToken>,
     /// The actual index we use to iterate throuh the tokens.
     index: usize,
-    // cursor: source_file::SourceSpan,
-    // error_log: errors::ErrorLog, // TODO: Use this
+    // cursor: source_file::SourceSpan, // Should this be used?
+    // error_log: errors::ErrorLog, // TODO: Use this. right now, only one expression can be
+    // evaulated, so there's no need for multiple errors.
 }
 
 impl Parser {
@@ -104,6 +105,8 @@ impl Parser {
             .drain(..)
             .filter(|source_token| !enum_variant_equal(&source_token.token, &whitespace_exemplar))
             .collect();
+        // TODO: Return a list of expressions. If an expression finishes evaulating, and there are
+        // still more tokens, check for a semicolon then continue appending evaluated expressions
         self.expression()
     }
     // Token reading.
@@ -144,23 +147,29 @@ impl Parser {
             if next_token.token == expected_token.token {
                 return Ok(next_token);
             }
-            return Err(errors::Error::Parsing(errors::ErrorDescription {
-                subject: None,
-                location: next_token.location_span,
-                description: format!(
-                    "Expected '{}' after expression, instead found '{}'",
-                    expected_token.token, next_token.token
-                ),
-            }));
+            return Err(errors::Error {
+                kind: errors::ErrorKind::Parsing,
+                description: errors::ErrorDescription {
+                    subject: None,
+                    location: next_token.location_span,
+                    description: format!(
+                        "Expected '{}' after expression, instead found '{}'",
+                        expected_token.token, next_token.token
+                    ),
+                },
+            });
         };
-        Err(errors::Error::Parsing(errors::ErrorDescription {
-            subject: None,
-            location: expected_token.location_span,
-            description: format!(
-                "Reached end of file while expecting '{}'",
-                expected_token.token
-            ),
-        }))
+        Err(errors::Error {
+            kind: errors::ErrorKind::Parsing,
+            description: errors::ErrorDescription {
+                subject: None,
+                location: expected_token.location_span,
+                description: format!(
+                    "Reached end of file while expecting '{}'",
+                    expected_token.token
+                ),
+            },
+        })
     }
     // Maybe would be better to use a cursor?
     fn previous_token(&self) -> scanner::SourceToken {
@@ -306,18 +315,24 @@ impl Parser {
                     })?;
                     Ok(Expr::Grouping(Box::new(expr)))
                 }
-                _ => Err(errors::Error::Parsing(errors::ErrorDescription {
-                    subject: Some(source_token.token.to_string()),
-                    location: source_token.location_span,
-                    description: String::from("No rule satisifed termination by token"),
-                })),
+                _ => Err(errors::Error {
+                    kind: errors::ErrorKind::Parsing,
+                    description: errors::ErrorDescription {
+                        subject: Some(source_token.token.to_string()),
+                        location: source_token.location_span,
+                        description: String::from("No rule satisifed termination by token"),
+                    },
+                }),
             }
         } else {
-            Err(errors::Error::Parsing(errors::ErrorDescription {
-                subject: None,
-                location: self.previous_token().location_span,
-                description: String::from("Ran out of tokens while satisfying rule"),
-            }))
+            Err(errors::Error {
+                kind: errors::ErrorKind::Parsing,
+                description: errors::ErrorDescription {
+                    subject: None,
+                    location: self.previous_token().location_span,
+                    description: String::from("Ran out of tokens while satisfying rule"),
+                },
+            })
         }
     }
 }
