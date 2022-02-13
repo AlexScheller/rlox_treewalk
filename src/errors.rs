@@ -52,7 +52,7 @@ impl fmt::Display for Error {
 
         let location_string = if let Some(location_value) = self.description.location {
             format!(
-                "[line: {}, col: {}]",
+                "[line: {}, col: {}] ",
                 location_value.start.line, location_value.start.column
             )
         } else {
@@ -67,7 +67,7 @@ impl fmt::Display for Error {
 
         write!(
             f,
-            "{} {} Error ({}){}",
+            "{}{} Error ({}){}",
             location_string, kind_string, self.description.description, subject_string
         )
     }

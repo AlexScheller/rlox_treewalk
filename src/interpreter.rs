@@ -7,6 +7,8 @@ use crate::scanner::Token;
 // 	fn type(&self) ->
 // }
 
+// -----| Comparison Utilities |-----
+
 trait Boolable {
     fn to_bool_option(&self) -> Option<bool>;
 }
@@ -43,6 +45,21 @@ fn is_equal(a: LiteralKind, b: LiteralKind) -> bool {
     // panic!("Illegal equality comparison of operands")
 }
 
+// -----| Reporting Utilities |-----
+
+fn construct_runtime_error(description: String) -> errors::Error {
+    errors::Error {
+        kind: errors::ErrorKind::Runtime,
+        description: errors::ErrorDescription {
+            subject: None,  // TODO
+            location: None, // TODO
+            description,
+        },
+    }
+}
+
+// -----| Driver |-----
+
 pub fn interpret_expression(expr: Expr) -> Result<LiteralKind, errors::Error> {
     let ret = match expr {
         Expr::Literal(literal) => Ok(literal),
@@ -65,18 +82,11 @@ fn interpret_unary(UnaryExpr { operator, right }: UnaryExpr) -> Result<LiteralKi
             if let LiteralKind::Number(value) = right_literal {
                 return Ok(LiteralKind::Number(-value));
             } else {
-                return Err(errors::Error {
-                    kind: errors::ErrorKind::Runtime,
-                    description: errors::ErrorDescription {
-                        subject: None,  // TODO
-                        location: None, // TODO
-                        description: format!(
-                            "Illegal operand for unary '{}' expression: {:?}",
-                            Token::Minus,
-                            right_literal
-                        ),
-                    },
-                });
+                return Err(construct_runtime_error(format!(
+                    "Illegal operand for unary '{}' expression: {:?}",
+                    Token::Minus,
+                    right_literal
+                )));
             }
         }
         Token::Bang => {
@@ -86,18 +96,11 @@ fn interpret_unary(UnaryExpr { operator, right }: UnaryExpr) -> Result<LiteralKi
                     return Ok(LiteralKind::Boolean(!is_truthy(right_literal)));
                 }
                 _ => {
-                    return Err(errors::Error {
-                        kind: errors::ErrorKind::Runtime,
-                        description: errors::ErrorDescription {
-                            subject: None,  // TODO
-                            location: None, // TODO
-                            description: format!(
-                                "Illegal operand for unary '{}' expression: {:?}",
-                                Token::Bang,
-                                right_literal
-                            ),
-                        },
-                    });
+                    return Err(construct_runtime_error(format!(
+                        "Illegal operand for unary '{}' expression: {:?}",
+                        Token::Bang,
+                        right_literal
+                    )));
                 }
             }
         }
@@ -130,20 +133,13 @@ fn interpret_binary(
                     return Ok(LiteralKind::Number(left_value - right_value));
                 }
             }
-            return Err(errors::Error {
-                kind: errors::ErrorKind::Runtime,
-                description: errors::ErrorDescription {
-                    subject: None,  // TODO
-                    location: None, // TODO
-                    description: format!(
-                        "Illegal operand for binary '{}' expression: {:?} {} {:?}",
-                        Token::Minus,
-                        left_literal,
-                        Token::Minus,
-                        right_literal
-                    ),
-                },
-            });
+            return Err(construct_runtime_error(format!(
+                "Illegal operand for binary '{}' expression: {:?} {} {:?}",
+                Token::Minus,
+                left_literal,
+                Token::Minus,
+                right_literal
+            )));
         }
         Token::Slash => {
             if let LiteralKind::Number(left_value) = left_literal {
@@ -151,20 +147,13 @@ fn interpret_binary(
                     return Ok(LiteralKind::Number(left_value / right_value));
                 }
             }
-            return Err(errors::Error {
-                kind: errors::ErrorKind::Runtime,
-                description: errors::ErrorDescription {
-                    subject: None,  // TODO
-                    location: None, // TODO
-                    description: format!(
-                        "Illegal operand for binary '{}' expression: {:?} {} {:?}",
-                        Token::Slash,
-                        left_literal,
-                        Token::Slash,
-                        right_literal
-                    ),
-                },
-            });
+            return Err(construct_runtime_error(format!(
+                "Illegal operand for binary '{}' expression: {:?} {} {:?}",
+                Token::Slash,
+                left_literal,
+                Token::Slash,
+                right_literal
+            )));
         }
         Token::Star => {
             if let LiteralKind::Number(left_value) = left_literal {
@@ -172,20 +161,13 @@ fn interpret_binary(
                     return Ok(LiteralKind::Number(left_value * right_value));
                 }
             }
-            return Err(errors::Error {
-                kind: errors::ErrorKind::Runtime,
-                description: errors::ErrorDescription {
-                    subject: None,  // TODO
-                    location: None, // TODO
-                    description: format!(
-                        "Illegal operand for binary '{}' expression: {:?} {} {:?}",
-                        Token::Star,
-                        left_literal,
-                        Token::Star,
-                        right_literal
-                    ),
-                },
-            });
+            return Err(construct_runtime_error(format!(
+                "Illegal operand for binary '{}' expression: {:?} {} {:?}",
+                Token::Star,
+                left_literal,
+                Token::Star,
+                right_literal
+            )));
         }
         Token::Plus => {
             if let LiteralKind::Number(left_value) = left_literal {
@@ -193,20 +175,13 @@ fn interpret_binary(
                     return Ok(LiteralKind::Number(left_value + right_value));
                 }
             }
-            return Err(errors::Error {
-                kind: errors::ErrorKind::Runtime,
-                description: errors::ErrorDescription {
-                    subject: None,  // TODO
-                    location: None, // TODO
-                    description: format!(
-                        "Illegal operand for binary '{}' expression: {:?} {} {:?}",
-                        Token::Plus,
-                        left_literal,
-                        Token::Plus,
-                        right_literal
-                    ),
-                },
-            });
+            return Err(construct_runtime_error(format!(
+                "Illegal operand for binary '{}' expression: {:?} {} {:?}",
+                Token::Plus,
+                left_literal,
+                Token::Plus,
+                right_literal
+            )));
         }
         Token::Greater => {
             if let LiteralKind::Number(left_value) = left_literal {
@@ -214,20 +189,13 @@ fn interpret_binary(
                     return Ok(LiteralKind::Boolean(left_value > right_value));
                 }
             }
-            return Err(errors::Error {
-                kind: errors::ErrorKind::Runtime,
-                description: errors::ErrorDescription {
-                    subject: None,  // TODO
-                    location: None, // TODO
-                    description: format!(
-                        "Illegal operand for binary '{}' expression: {:?} {} {:?}",
-                        Token::Greater,
-                        left_literal,
-                        Token::Greater,
-                        right_literal
-                    ),
-                },
-            });
+            return Err(construct_runtime_error(format!(
+                "Illegal operand for binary '{}' expression: {:?} {} {:?}",
+                Token::Greater,
+                left_literal,
+                Token::Greater,
+                right_literal
+            )));
         }
         Token::GreaterEqual => {
             if let LiteralKind::Number(left_value) = left_literal {
@@ -235,20 +203,13 @@ fn interpret_binary(
                     return Ok(LiteralKind::Boolean(left_value >= right_value));
                 }
             }
-            return Err(errors::Error {
-                kind: errors::ErrorKind::Runtime,
-                description: errors::ErrorDescription {
-                    subject: None,  // TODO
-                    location: None, // TODO
-                    description: format!(
-                        "Illegal operand for binary '{}' expression: {:?} {} {:?}",
-                        Token::GreaterEqual,
-                        left_literal,
-                        Token::GreaterEqual,
-                        right_literal
-                    ),
-                },
-            });
+            return Err(construct_runtime_error(format!(
+                "Illegal operand for binary '{}' expression: {:?} {} {:?}",
+                Token::GreaterEqual,
+                left_literal,
+                Token::GreaterEqual,
+                right_literal
+            )));
         }
         Token::Less => {
             if let LiteralKind::Number(left_value) = left_literal {
@@ -256,20 +217,13 @@ fn interpret_binary(
                     return Ok(LiteralKind::Boolean(left_value < right_value));
                 }
             }
-            return Err(errors::Error {
-                kind: errors::ErrorKind::Runtime,
-                description: errors::ErrorDescription {
-                    subject: None,  // TODO
-                    location: None, // TODO
-                    description: format!(
-                        "Illegal operand for binary '{}' expression: {:?} {} {:?}",
-                        Token::Less,
-                        left_literal,
-                        Token::Less,
-                        right_literal
-                    ),
-                },
-            });
+            return Err(construct_runtime_error(format!(
+                "Illegal operand for binary '{}' expression: {:?} {} {:?}",
+                Token::Less,
+                left_literal,
+                Token::Less,
+                right_literal
+            )));
         }
         Token::LessEqual => {
             if let LiteralKind::Number(left_value) = left_literal {
@@ -277,20 +231,13 @@ fn interpret_binary(
                     return Ok(LiteralKind::Boolean(left_value <= right_value));
                 }
             }
-            return Err(errors::Error {
-                kind: errors::ErrorKind::Runtime,
-                description: errors::ErrorDescription {
-                    subject: None,  // TODO
-                    location: None, // TODO
-                    description: format!(
-                        "Illegal operand for binary '{}' expression: {:?} {} {:?}",
-                        Token::LessEqual,
-                        left_literal,
-                        Token::LessEqual,
-                        right_literal
-                    ),
-                },
-            });
+            return Err(construct_runtime_error(format!(
+                "Illegal operand for binary '{}' expression: {:?} {} {:?}",
+                Token::LessEqual,
+                left_literal,
+                Token::LessEqual,
+                right_literal
+            )));
         }
         Token::BangEqual => {
             return Ok(LiteralKind::Boolean(!is_equal(left_literal, right_literal)))
@@ -322,16 +269,9 @@ fn interpret_ternary(
             interpret_expression(*right_result)
         }
     } else {
-        Err(errors::Error {
-            kind: errors::ErrorKind::Runtime,
-            description: errors::ErrorDescription {
-                subject: None,  // TODO
-                location: None, // TODO
-                description: format!(
-                    "Non boolean type used as condition in ternary: {:?}",
-                    condition_literal
-                ),
-            },
-        })
+        Err(construct_runtime_error(format!(
+            "Non boolean type used as condition in ternary: {:?}",
+            condition_literal
+        )))
     }
 }

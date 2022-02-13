@@ -117,18 +117,20 @@ impl Parser {
         // Look into this, I have to do it this way to avoid mutable/immutable borrow conflicts.
         // maybe because if I just return `self.tokens.get(self.index)` there's some kind of
         // memory sharing there or smth? Dunno.
-        if let Some(token) = self.tokens.get(self.index) {
-            if token.token == scanner::Token::Eof {
-                return None;
-            } else {
-                return Some(token.clone());
-            }
-        }
+
         // We panic, rather than returning an error, because the Eof sentinal should have been
         // appended to the token list *by the scanner*.
-        panic!("Consumed all tokens without encountering EOF");
+        let token = self
+            .tokens
+            .get(self.index)
+            .expect("Consumed all tokens without encountering EOF");
+        if token.token == scanner::Token::Eof {
+            return None;
+        } else {
+            return Some(token.clone());
+        }
     }
-    fn advance_to_next_token(&mut self) -> Option<&scanner::SourceToken> {
+    fn advance_token_index(&mut self) -> Option<&scanner::SourceToken> {
         if let Some(token) = self.tokens.get(self.index) {
             self.index += 1;
             if token.token == scanner::Token::Eof {
@@ -143,7 +145,7 @@ impl Parser {
         &mut self,
         expected_token: scanner::SourceToken,
     ) -> Result<&scanner::SourceToken, errors::Error> {
-        if let Some(next_token) = self.advance_to_next_token() {
+        if let Some(next_token) = self.advance_token_index() {
             if next_token.token == expected_token.token {
                 return Ok(next_token);
             }
@@ -178,6 +180,19 @@ impl Parser {
         }
         panic!("Attempted to read previous token while at index 0");
     }
+    // TODO: This one will take some thinking. The idea is to run the token index to the next
+    // statement boundary, and begin parsing again.
+    // fn synchronize_to_statement_boundary(&self) {
+    //     while let Some(source_token) = self.advance_token_index() {
+    //         match source_token.token {
+    //             scanner::Token::Semicolon => break,
+    //             // scanner::Token::Class | scanner::Token::For |
+    //             // scanner::Token::Fun | scanner::Token::If |
+    //             // scanner::Token::Print | scanner::Token::Return |
+    //             // scanner::Token::Var | scanner::Token::While => break
+    //         }
+    //     }
+    // }
     // Rules
     // TODO:? Make a helper function for binaries that just takes a list of the tokens necesary and
     // the next function to match? Might look a bit weird. Also, it may be slightly faster to have
@@ -191,7 +206,7 @@ impl Parser {
         let mut expr = self.equality()?;
         while let Some(source_token) = self.peek_next_token() {
             if source_token.token == TERNARY_TEST_TOKEN {
-                self.advance_to_next_token();
+                self.advance_token_index();
                 let left_result = self.equality()?;
                 // TODO: Deal with this. I'm creating a synthetic token with the location of the
                 // current token, but the value of the token I'm seeking. This is "correct" when it
@@ -216,7 +231,7 @@ impl Parser {
         let mut expr = self.comparison()?;
         while let Some(source_token) = self.peek_next_token() {
             if EQUALITY_TOKENS.contains(&source_token.token) {
-                self.advance_to_next_token();
+                self.advance_token_index();
                 let operator = source_token.token.clone();
                 let right = self.comparison()?;
                 expr = Expr::Binary(BinaryExpr {
@@ -234,7 +249,7 @@ impl Parser {
         let mut expr = self.term()?;
         while let Some(source_token) = self.peek_next_token() {
             if COMPARISON_TOKENS.contains(&source_token.token) {
-                self.advance_to_next_token();
+                self.advance_token_index();
                 let operator = source_token.token.clone();
                 let right = self.term()?;
                 expr = Expr::Binary(BinaryExpr {
@@ -252,7 +267,7 @@ impl Parser {
         let mut expr = self.factor()?;
         while let Some(source_token) = self.peek_next_token() {
             if TERM_TOKENS.contains(&source_token.token) {
-                self.advance_to_next_token();
+                self.advance_token_index();
                 let operator = source_token.token.clone();
                 let right = self.factor()?;
                 expr = Expr::Binary(BinaryExpr {
@@ -270,7 +285,7 @@ impl Parser {
         let mut expr = self.unary()?;
         while let Some(source_token) = self.peek_next_token() {
             if FACTOR_TOKENS.contains(&source_token.token) {
-                self.advance_to_next_token();
+                self.advance_token_index();
                 let operator = source_token.token.clone();
                 let right = self.unary()?;
                 expr = Expr::Binary(BinaryExpr {
@@ -287,7 +302,7 @@ impl Parser {
     fn unary(&mut self) -> Result<Expr, errors::Error> {
         if let Some(source_token) = self.peek_next_token() {
             if UNARY_TOKENS.contains(&source_token.token) {
-                self.advance_to_next_token();
+                self.advance_token_index();
                 let operator = source_token.token.clone();
                 let right = self.unary()?;
                 return Ok(Expr::Unary(UnaryExpr {
@@ -300,7 +315,7 @@ impl Parser {
     }
     fn primary(&mut self) -> Result<Expr, errors::Error> {
         if let Some(source_token) = self.peek_next_token() {
-            self.advance_to_next_token();
+            self.advance_token_index();
             match source_token.token {
                 scanner::Token::False => Ok(Expr::Literal(LiteralKind::Boolean(false))),
                 scanner::Token::True => Ok(Expr::Literal(LiteralKind::Boolean(true))),
