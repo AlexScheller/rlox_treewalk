@@ -65,36 +65,20 @@ fn run_prompt() {
 // scanning.
 fn run(source: String) {
     let scanner = scanner::Scanner::from_source(source);
-    // if scanner.error_log().len() > 0 {
-    //     errors::report_and_exit(exitcode::DATAERR, scanner.error_log())
-    // }
     if scanner.error_log().len() > 0 {
         errors::print_error_log(scanner.error_log());
     }
-    // println!("Tokens:");
-    // for token in scanner.tokens() {
-    //     println!("{:?}", token);
-    // }
-    println!("AST:");
     let mut parser = parser::Parser::new(scanner.tokens());
-    let expression = parser.parse();
-    match expression {
-        Ok(expression) => {
-            println!("{}", ast_printer::expr_to_ast_string(&expression));
-            let interpretation = interpreter::interpret_expression(expression);
-            match interpretation {
-                Ok(value) => println!("The result of this expression is: {:?}", value),
-                Err(error) => {
-                    let mut log = errors::ErrorLog::new();
-                    log.push(error);
-                    errors::report_and_exit(exitcode::SOFTWARE, &log)
-                }
-            }
-        }
-        Err(error) => {
-            let mut log = errors::ErrorLog::new();
-            log.push(error);
-            errors::report_and_exit(exitcode::DATAERR, &log);
-        }
+    let statements = parser.parse();
+
+    if parser.error_log().len() > 0 {
+        errors::report_and_exit(exitcode::DATAERR, parser.error_log());
     }
+
+    println!("Statement ASTs:");
+    for statement in statements.iter() {
+        println!("{}", ast_printer::stmt_to_ast_string(&statement))
+    }
+
+    interpreter::interpret(statements);
 }

@@ -33,3 +33,18 @@ pub fn expr_to_ast_string(expression: &parser::Expr) -> String {
     };
     ret
 }
+
+pub fn stmt_to_ast_string(statement: &parser::Stmt) -> String {
+    let ret = match statement {
+        parser::Stmt::Expression(stmt) => {
+            format!(
+                "Expression Statement: {}",
+                expr_to_ast_string(&stmt.expression)
+            )
+        }
+        parser::Stmt::Print(stmt) => {
+            format!("Print Statement: {}", expr_to_ast_string(&stmt.expression),)
+        }
+    };
+    ret
+}

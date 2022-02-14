@@ -1,5 +1,5 @@
 use crate::errors;
-use crate::parser::{BinaryExpr, Expr, LiteralKind, TernaryExpr, UnaryExpr};
+use crate::parser::{BinaryExpr, Expr, LiteralKind, Stmt, TernaryExpr, UnaryExpr};
 use crate::scanner::Token;
 
 // // Rust's native method of runtime introspection is not recomended for anything other than debugging.
@@ -58,7 +58,38 @@ fn construct_runtime_error(description: String) -> errors::Error {
     }
 }
 
-// -----| Driver |-----
+// -----| Drivers |-----
+
+// --- Statements ---
+
+pub fn interpret(statements: Vec<Stmt>) {
+    for statement in statements {
+        if let Some(error) = interpret_statement(statement) {
+            // Hmm, this seems wrong.
+            let mut log = errors::ErrorLog::new();
+            log.push(error);
+            errors::report_and_exit(exitcode::SOFTWARE, &log)
+        }
+    }
+}
+
+pub fn interpret_statement(stmt: Stmt) -> Option<errors::Error> {
+    match stmt {
+        Stmt::Expression(statement) => match interpret_expression(statement.expression) {
+            Ok(_) => None,
+            Err(error) => Some(error),
+        },
+        Stmt::Print(statement) => match interpret_expression(statement.expression) {
+            Ok(value) => {
+                println!("{:?}", value);
+                None
+            }
+            Err(error) => Some(error),
+        },
+    }
+}
+
+// --- Expressions ---
 
 pub fn interpret_expression(expr: Expr) -> Result<LiteralKind, errors::Error> {
     let ret = match expr {
