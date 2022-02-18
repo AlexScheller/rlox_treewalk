@@ -10,6 +10,7 @@ const USE_EXTENDED_UNICODE: bool = true;
 // -----| Symbols |-----
 
 type Symbol = String;
+pub type Identifier = String;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum WhitespaceKind {
@@ -45,7 +46,7 @@ pub enum Token {
     Less,
     LessEqual,
     // Literals
-    Identifier(String),
+    Identifier(Identifier), // Note if this ever changes then other representations of identifiers will need to also.
     String(String),
     Number(f64),
     // Keywords

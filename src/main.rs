@@ -61,8 +61,6 @@ fn run_prompt() {
     }
 }
 
-// TODO?: Get infrastructure setup to report all errors at end, rather than exiting early after
-// scanning.
 fn run(source: String) {
     let scanner = scanner::Scanner::from_source(source);
     if scanner.error_log().len() > 0 {

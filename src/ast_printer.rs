@@ -29,7 +29,9 @@ pub fn expr_to_ast_string(expression: &parser::Expr) -> String {
         },
         parser::Expr::Unary(expr) => {
             format!("({} {})", expr.operator, expr_to_ast_string(&expr.right))
-        }
+        } // parser::Expr::Variable(expr) => {
+
+          // }
     };
     ret
 }
@@ -44,6 +46,14 @@ pub fn stmt_to_ast_string(statement: &parser::Stmt) -> String {
         }
         parser::Stmt::Print(stmt) => {
             format!("Print Statement: {}", expr_to_ast_string(&stmt.expression),)
+        }
+        parser::Stmt::Var(stmt) => {
+            let initilizer_string = if let Some(initializer) = &stmt.initializer {
+                format!(" = {}", expr_to_ast_string(initializer))
+            } else {
+                String::from("")
+            };
+            format!("Variable Statement: {}{}", stmt.name, initilizer_string)
         }
     };
     ret
